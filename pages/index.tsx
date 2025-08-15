@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 
 type Track = { id: number|string; title: string; album?: string; artist?: string; cover_url?: string; url: string; year?: string };
@@ -75,7 +76,8 @@ export default function Home() {
     const vv = (window as any).visualViewport;
     if (!vv) return;
     const onResize = () => {
-      const kb = Math.max(0, (vv.height ? (window.innerHeight - vv.height) : 0));
+      const diff = vv.height ? Math.round(window.innerHeight - vv.height) : 0;
+      const kb = diff > 60 ? diff : 0; // ignore small noise
       document.documentElement.style.setProperty('--kb', kb + 'px');
     };
     vv.addEventListener('resize', onResize);
@@ -184,8 +186,10 @@ export default function Home() {
     )}
 
     <style jsx global>{`
+      *,*::before,*::after{ box-sizing:border-box }
+      html,body{ max-width:100%; overflow-x:hidden }
       @media (max-width: 520px) {
-        .trackCard { flex-direction: column; align-items: stretch; }
+        .trackCard { flex-direction: column; align-items: stretch; width:100%; }
         .actions { width: 100%; display: grid !important; grid-template-columns: 1fr auto; gap:8px; }
         .btn-play { width: 100%; }
         header .stats { display: none; }
