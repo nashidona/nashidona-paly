@@ -16,7 +16,8 @@ export default function Home() {
 
   const [queue, setQueue] = useState<Track[]>(() => { try { const raw = localStorage.getItem('nd_queue'); return raw? JSON.parse(raw): []; } catch { return []; } });
   const [current, setCurrent] = useState<Track | null>(() => { try { const raw = localStorage.getItem('nd_current'); const id = raw? JSON.parse(raw): null; const qraw = localStorage.getItem('nd_queue'); const arr: Track[] = qraw? JSON.parse(qraw): []; return id? (arr.find(x => String(x.id) === String(id)) || null) : null; } catch { return null; } });
-  const [t, setT] = useState(0); const [dur, setDur] = useState(0); const [open, setOpen] = useState(false);
+  const [t, setT] = useState(0); const [dur, setDur] = useState(0);
+  const [open, setOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoPlayPending = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -64,6 +65,24 @@ export default function Home() {
     return () => { io.disconnect(); };
   }, [offset, loading, items.length, count, dq]);
 
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = open ? 'hidden' : prev || '';
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+
+  useEffect(() => {
+    const vv = (window as any).visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      const kb = Math.max(0, (vv.height ? (window.innerHeight - vv.height) : 0));
+      document.documentElement.style.setProperty('--kb', kb + 'px');
+    };
+    vv.addEventListener('resize', onResize);
+    onResize();
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
+
   function playNow(tr: Track) { setCurrent(tr); if (!queue.find(x => String(x.id) === String(tr.id))) setQueue(q => [tr, ...q]); autoPlayPending.current = true; }
   function addToQueue(tr: Track) { setQueue(q => (q.find(x => String(x.id) === String(tr.id)) ? q : [...q, tr])); }
   function clearQueue() { setQueue([]); setCurrent(null); }
@@ -93,11 +112,11 @@ export default function Home() {
       {err && <div style={{color:'#dc2626',textAlign:'center',marginTop:8}}>{err}</div>}
     </section>
 
-    <main style={{maxWidth:960,margin:'0 auto',padding:'0 16px 140px 16px'}}>
+    <main style={{maxWidth:960,margin:'0 auto',padding:'0 16px calc(140px + var(--kb,0)) 16px'}}>
       <div style={{display:'grid',gap:12}}>
         {items.map(tr=>(<div key={String(tr.id)} className='trackCard' style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8,border:'1px solid #e5e7eb',borderRadius:12,padding:12,background:'#fff'}}>
           <div style={{display:'flex',alignItems:'center',gap:12,minWidth:0,flex:1}}>
-            {tr.cover_url? <img src={tr.cover_url} width={54} height={54} style={{objectFit:'cover',borderRadius:10}} alt=''/>:<div style={{width:54,height:54,borderRadius:10,background:'#d1fae5'}}/>}
+            {tr.cover_url? <img loading='lazy' src={tr.cover_url} width={54} height={54} style={{objectFit:'cover',borderRadius:10}} alt=''/>:<div style={{width:54,height:54,borderRadius:10,background:'#d1fae5'}}/>}
             <div style={{minWidth:0}}>
               <div style={{fontWeight:700,color:'#064e3b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={tr.title}>{tr.title}</div>
               <div style={{fontSize:12,color:'#047857',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tr.album||'—'} {tr.year? `• ${tr.year}`:''}</div>
@@ -105,15 +124,15 @@ export default function Home() {
             </div>
           </div>
           <div className='actions' style={{display:'flex',gap:8}}>
-            <button onClick={()=>addToQueue(tr)} style={{padding:'8px 10px',border:'1px solid #d1fae5',borderRadius:8}}>+ قائمة</button>
-            <button onClick={()=>{playNow(tr);}} style={{padding:'8px 10px',background:'#059669',color:'#fff',borderRadius:8}}>▶ تشغيل</button>
+            <button className='btn-queue' onClick={()=>addToQueue(tr)} style={{padding:'8px 10px',border:'1px solid #d1fae5',borderRadius:8}}>+ قائمة</button>
+            <button className='btn-play' onClick={()=>{playNow(tr);}} style={{padding:'8px 10px',background:'#059669',color:'#fff',borderRadius:8}}>▶ تشغيل</button>
           </div>
         </div>))}
       </div>
       <div ref={sentinelRef} style={{height:1}}/>
     </main>
 
-    <footer style={{position:'fixed',bottom:0,left:0,right:0,background:'#ffffffee',backdropFilter:'blur(8px)',borderTop:'1px solid #e5e7eb',zIndex:20}}>
+    <footer style={{position:'fixed',bottom:'var(--kb,0)',left:0,right:0,background:'#ffffffee',backdropFilter:'blur(8px)',borderTop:'1px solid #e5e7eb',zIndex:40}}>
       <div style={{maxWidth:960,margin:'0 auto',padding:'10px 12px',display:'flex',alignItems:'center',gap:12}}>
         <button onClick={()=>playPrev(true)} title='السابق'>⏮</button>
         <button onClick={()=>{const a=audioRef.current;if(!a)return;if(a.paused)a.play();else a.pause();}} title='تشغيل/إيقاف'>⏯</button>
@@ -123,17 +142,62 @@ export default function Home() {
           <input type='range' min={0} max={Math.max(1,dur)} step={1} value={Math.min(t,dur||0)} onChange={(e)=>{const v=parseFloat(e.target.value); const a=audioRef.current; if(a){a.currentTime=v;} setT(v);}} style={{flex:1}}/>
           <span style={{width:42,textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmt(dur)}</span>
         </div>
-        <button onClick={()=>setOpen(v=>!v)} title='عرض/إخفاء قائمة التشغيل' style={{padding:'6px 10px',border:'1px solid #d1fae5',borderRadius:8}}>قائمة ({queue.length})</button>
+        <button
+          onClick={()=>setOpen(true)}
+          onTouchEnd={()=>setOpen(true)}
+          aria-expanded={open}
+          style={{padding:'6px 10px',border:'1px solid #d1fae5',borderRadius:8}}
+        >
+          قائمة ({queue.length})
+        </button>
         <audio ref={audioRef} src={current? `/api/stream/${current.id}`: undefined} preload='metadata'/>
       </div>
     </footer>
 
+    {open && (
+      <div className='sheet' onClick={()=>setOpen(false)}>
+        <div className='panel' onClick={(e)=>e.stopPropagation()}>
+          <div className='handle'/>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+            <b>قائمة التشغيل</b>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setOpen(false)}>إغلاق</button>
+              <button onClick={clearQueue} disabled={!queue.length}>تفريغ الكل</button>
+            </div>
+          </div>
+          <div style={{display:'grid',gap:8,maxHeight:'56vh',overflowY:'auto'}}>
+            {queue.map((tr,i)=>(
+              <div key={String(tr.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',border:'1px solid #e5e7eb',borderRadius:10,padding:'6px 8px',background: current&&String(current.id)===String(tr.id)? '#ecfdf5':'#fff'}}>
+                <div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={tr.title}>{tr.title}</div>
+                <div style={{display:'flex',gap:6}}>
+                  <button onClick={()=>move(tr.id,-1)} disabled={i===0} title='أعلى'>⬆</button>
+                  <button onClick={()=>move(tr.id,+1)} disabled={i===queue.length-1} title='أسفل'>⬇</button>
+                  <button onClick={()=>removeFromQueue(tr.id)} title='حذف'>✕</button>
+                  <button onClick={()=>{setCurrent(tr);}} title='تشغيل'>▶</button>
+                </div>
+              </div>
+            ))}
+            {!queue.length && <div style={{color:'#6b7280'}}>لا يوجد عناصر بعد. أضف من النتائج أعلاه.</div>}
+          </div>
+        </div>
+      </div>
+    )}
+
     <style jsx global>{`
       @media (max-width: 520px) {
         .trackCard { flex-direction: column; align-items: stretch; }
-        .actions { width: 100%; justify-content: space-between; }
+        .actions { width: 100%; display: grid !important; grid-template-columns: 1fr auto; gap:8px; }
+        .btn-play { width: 100%; }
         header .stats { display: none; }
       }
+      .sheet{ position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.25); }
+      .sheet .panel{
+        position: absolute; left:0; right:0; bottom:0;
+        background:#fff; border-top-left-radius:16px; border-top-right-radius:16px;
+        padding: 10px; box-shadow: 0 -10px 30px rgba(0,0,0,.15);
+        padding-bottom: calc(10px + env(safe-area-inset-bottom));
+      }
+      .sheet .handle{ width:44px; height:5px; background:#e5e7eb; border-radius:999px; margin:6px auto 10px; }
     `}</style>
   </div>);
 }

@@ -1,1 +1,3 @@
-# Nashidona v3.1 — تحسينات بحث + تمرير لانهائي + تجاوب للموبايل\n
+# Nashidona v3.3 — Global search + mobile playlist fixes
+
+Deploy: run db/global_search.sql in Supabase, then deploy to Vercel.
