@@ -1,7 +1,6 @@
 
-Nashidona v3.4.1 (SSR-safe)
-- Fix: guard all localStorage/window/navigator usage for Next.js SSR on Vercel.
-- Same features as v3.4: Media Session, Random playlist, Loop modes, Sleep timer.
-Env:
-  NEXT_PUBLIC_SUPABASE_URL
-  SUPABASE_SERVICE_ROLE_KEY
+Nashidona v3.4.3
+- Fix compile error: 'open' used before declaration (single declaration at top).
+- Fix boolean literals True -> true.
+- Fix JSX conditional 'and' -> '&&'.
+- Keep SSR guards for localStorage/window/navigator.

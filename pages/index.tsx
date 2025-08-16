@@ -49,7 +49,12 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string>('');
 
-  // SSR-safe initial states
+  // UI + audio state (declare early)
+  const [open, setOpen] = useState(false);
+  const [t, setT] = useState(0);
+  const [dur, setDur] = useState(0);
+
+  // SSR-safe initial states (hydrate later from localStorage)
   const [queue, setQueue] = useState<Track[]>([]);
   const [current, setCurrent] = useState<Track | null>(null);
   const [loop, setLoop] = useState<LoopMode>('queue');
@@ -168,14 +173,12 @@ export default function Home() {
   function move(id: Track['id'], dir: -1|1) { setQueue(q => { const i = q.findIndex(x => String(x.id) === String(id)); if (i < 0) return q; const j = i + dir; if (j < 0 || j >= q.length) return q; const c=[...q]; const tmp=c[i]; c[i]=c[j]; c[j]=tmp; return c; }); }
   function playNext(autoplay = false) { setQueue(q => { if (!q.length) { setCurrent(null); return q; } const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1; const next = (idx >= 0 && idx < q.length - 1) ? q[idx + 1] : q[0]; setCurrent(next); if (autoplay) autoPlayPending.current = true; setMediaSession(next, audioRef.current!); return q; }); }
   function playPrev(autoplay = false) { setQueue(q => { if (!q.length) { setCurrent(null); return q; } const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1; const prev = (idx > 0) ? q[idx - 1] : q[q.length - 1]; setCurrent(prev); if (autoplay) autoPlayPending.current = true; setMediaSession(prev, audioRef.current!); return q; }); }
-  function seek(v: number) { const a = audioRef.current; if (!a) return; a.currentTime = v; }
+  function seek(v: number) { const a = audioRef.current; if (!a) return; a.currentTime = v; setT(v); }
 
   // expose next/prev for media session handlers
   useEffect(()=>{ if (typeof window === 'undefined') return; (window as any).__playNext = ()=>playNext(true); (window as any).__playPrev = ()=>playPrev(true); }, [queue, current]);
 
   // audio events
-  const [open, setOpen] = useState(false);
-  const [t, setT] = useState(0); const [dur, setDur] = useState(0);
   useEffect(() => {
     const a = audioRef.current; if (!a) return;
     const onTime = () => {
@@ -252,7 +255,7 @@ export default function Home() {
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:220}}>
           <span style={{width:42,textAlign:'left',fontVariantNumeric:'tabular-nums'}}>{fmt(t)}</span>
-          <input type='range' min={0} max={Math.max(1,dur)} step={1} value={Math.min(t,dur||0)} onChange={(e)=>{const v=parseFloat(e.target.value); const a=audioRef.current; if(a){a.currentTime=v;} }} style={{flex:1}}/>
+          <input type='range' min={0} max={Math.max(1,dur)} step={1} value={Math.min(t,dur||0)} onChange={(e)=>{const v=parseFloat(e.target.value); const a=audioRef.current; if(a){a.currentTime=v;} setT(v);}} style={{flex:1}}/>
           <span style={{width:42,textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmt(dur)}</span>
         </div>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
@@ -268,7 +271,7 @@ export default function Home() {
             <option value="60">60د</option>
           </select>
         </div>
-        <button onClick={()=>setOpen(True)} onTouchEnd={()=>setOpen(True)} aria-expanded={open}
+        <button onClick={()=>setOpen(true)} onTouchEnd={()=>setOpen(true)} aria-expanded={open}
                 style={{padding:'6px 10px',border:'1px solid #d1fae5',borderRadius:8}}>
           قائمة ({queue.length})
         </button>
@@ -299,7 +302,7 @@ export default function Home() {
                 </div>
               </div>
             ))}
-            {!queue.length and <div style={{color:'#6b7280'}}>لا يوجد عناصر بعد. أضف من النتائج أعلاه.</div>}
+            {!queue.length && <div style={{color:'#6b7280'}}>لا يوجد عناصر بعد. أضف من النتائج أعلاه.</div>}
           </div>
         </div>
       </div>
