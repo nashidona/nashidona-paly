@@ -2,9 +2,43 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 type Track = { id: number|string; title: string; album?: string; artist?: string; cover_url?: string; url: string; year?: string };
+type LoopMode = 'none'|'queue'|'one';
 
 function fmt(sec: number) { if (!isFinite(sec) || sec < 0) return '0:00'; const m = Math.floor(sec/60); const s = Math.floor(sec%60); return `${m}:${s.toString().padStart(2,'0')}`; }
 function useDebounced<T>(value: T, delay = 300) { const [v, setV] = useState(value); useEffect(() => { const t = setTimeout(() => setV(value), delay); return () => clearTimeout(t); }, [value, delay]); return v; }
+
+function setMediaSession(tr: {id:any; title:string; artist?:string; album?:string; cover_url?:string}, a?: HTMLAudioElement) {
+  if (!('mediaSession' in navigator)) return;
+  const art = tr.cover_url ? [
+    { src: tr.cover_url, sizes: '96x96',   type: 'image/png' },
+    { src: tr.cover_url, sizes: '192x192', type: 'image/png' },
+    { src: tr.cover_url, sizes: '512x512', type: 'image/png' },
+  ] : [{ src: '/logo.png', sizes: '192x192', type: 'image/png' }];
+
+  // @ts-ignore
+  navigator.mediaSession.metadata = new MediaMetadata({ title: tr.title, artist: tr.artist || '', album: tr.album || '', artwork: art as any });
+  const play = () => a?.play().catch(()=>{});
+  const pause = () => a?.pause();
+  // @ts-ignore
+  navigator.mediaSession.setActionHandler('play', play);
+  // @ts-ignore
+  navigator.mediaSession.setActionHandler('pause', pause);
+  // @ts-ignore
+  navigator.mediaSession.setActionHandler('previoustrack', () => (window as any).__playPrev?.());
+  // @ts-ignore
+  navigator.mediaSession.setActionHandler('nexttrack', () => (window as any).__playNext?.());
+  // @ts-ignore
+  navigator.mediaSession.setActionHandler('seekbackward', (d:any)=>{ if(!a) return; a.currentTime = Math.max(0, a.currentTime - (d?.seekOffset||10));});
+  // @ts-ignore
+  navigator.mediaSession.setActionHandler('seekforward', (d:any)=>{ if(!a) return; a.currentTime = Math.min(a.duration||0, a.currentTime + (d?.seekOffset||10));});
+  // @ts-ignore
+  navigator.mediaSession.setActionHandler('seekto', (d:any)=>{ if(!a || d.fastSeek) return; a.currentTime = d.seekTime || 0;});
+  // @ts-ignore
+  if (a && ('setPositionState' in navigator.mediaSession)) {
+    // @ts-ignore
+    navigator.mediaSession.setPositionState({ duration: a.duration || 0, position: a.currentTime || 0, playbackRate: a.playbackRate || 1 });
+  }
+}
 
 export default function Home() {
   const [q, setQ] = useState('');
@@ -23,6 +57,12 @@ export default function Home() {
   const autoPlayPending = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  const [loop, setLoop] = useState<LoopMode>(() => (localStorage.getItem('nd_loop') as LoopMode) || 'queue');
+  useEffect(()=>{ try{ localStorage.setItem('nd_loop', loop);}catch{} }, [loop]);
+
+  const [sleepAt, setSleepAt] = useState<number|null>(() => { try { return JSON.parse(localStorage.getItem('nd_sleep')||'null'); } catch { return null; } });
+  useEffect(()=>{ try{ localStorage.setItem('nd_sleep', JSON.stringify(sleepAt)); } catch{} }, [sleepAt]);
+
   async function fetchPage(newOffset = 0, append = false) {
     setLoading(true); setErr('');
     try {
@@ -37,18 +77,24 @@ export default function Home() {
       setLoading(false);
     }
   }
-  useEffect(() => { setOffset(0); fetchPage(0, false); }, [dq]);
 
+  // first load: random if query empty
   useEffect(() => {
-    const a = audioRef.current; if (!a) return;
-    const onTime = () => setT(a.currentTime || 0);
-    const onMeta = () => { setDur(a.duration || 0); if (autoPlayPending.current) { a.play().catch(()=>{}); autoPlayPending.current = false; } };
-    const onEnd = () => { playNext(true); };
-    a.addEventListener('timeupdate', onTime);
-    a.addEventListener('loadedmetadata', onMeta);
-    a.addEventListener('ended', onEnd);
-    return () => { a.removeEventListener('timeupdate', onTime); a.removeEventListener('loadedmetadata', onMeta); a.removeEventListener('ended', onEnd); };
-  }, [current, queue]);
+    async function firstLoad(){
+      if (dq.trim() === '') {
+        try {
+          const r = await fetch('/api/random?limit=60');
+          const j = await r.json();
+          setItems(j.items || []);
+          setCount((j.items||[]).length);
+          return;
+        } catch {}
+      }
+      setOffset(0);
+      fetchPage(0,false);
+    }
+    firstLoad();
+  }, [dq]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -77,7 +123,7 @@ export default function Home() {
     if (!vv) return;
     const onResize = () => {
       const diff = vv.height ? Math.round(window.innerHeight - vv.height) : 0;
-      const kb = diff > 60 ? diff : 0; // ignore small noise
+      const kb = diff > 60 ? diff : 0;
       document.documentElement.style.setProperty('--kb', kb + 'px');
     };
     vv.addEventListener('resize', onResize);
@@ -85,17 +131,49 @@ export default function Home() {
     return () => vv.removeEventListener('resize', onResize);
   }, []);
 
-  function playNow(tr: Track) { setCurrent(tr); if (!queue.find(x => String(x.id) === String(tr.id))) setQueue(q => [tr, ...q]); autoPlayPending.current = true; }
+  function playNow(tr: Track) {
+    setCurrent(tr);
+    if (!queue.find(x => String(x.id) === String(tr.id))) setQueue(q => [tr, ...q]);
+    autoPlayPending.current = true;
+    setMediaSession(tr, audioRef.current!);
+  }
   function addToQueue(tr: Track) { setQueue(q => (q.find(x => String(x.id) === String(tr.id)) ? q : [...q, tr])); }
   function clearQueue() { setQueue([]); setCurrent(null); }
   function removeFromQueue(id: Track['id']) { setQueue(q => q.filter(x => String(x.id) !== String(id))); if (current && String(current.id) === String(id)) setTimeout(() => playNext(true), 0); }
   function move(id: Track['id'], dir: -1|1) { setQueue(q => { const i = q.findIndex(x => String(x.id) === String(id)); if (i < 0) return q; const j = i + dir; if (j < 0 || j >= q.length) return q; const c=[...q]; const tmp=c[i]; c[i]=c[j]; c[j]=tmp; return c; }); }
-  function playNext(autoplay = false) { setQueue(q => { if (!q.length) { setCurrent(null); return q; } const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1; const next = (idx >= 0 && idx < q.length - 1) ? q[idx + 1] : q[0]; setCurrent(next); if (autoplay) autoPlayPending.current = true; return q; }); }
-  function playPrev(autoplay = false) { setQueue(q => { if (!q.length) { setCurrent(null); return q; } const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1; const prev = (idx > 0) ? q[idx - 1] : q[q.length - 1]; setCurrent(prev); if (autoplay) autoPlayPending.current = true; return q; }); }
+  function playNext(autoplay = false) { setQueue(q => { if (!q.length) { setCurrent(null); return q; } const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1; const next = (idx >= 0 && idx < q.length - 1) ? q[idx + 1] : q[0]; setCurrent(next); if (autoplay) autoPlayPending.current = true; setMediaSession(next, audioRef.current!); return q; }); }
+  function playPrev(autoplay = false) { setQueue(q => { if (!q.length) { setCurrent(null); return q; } const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1; const prev = (idx > 0) ? q[idx - 1] : q[q.length - 1]; setCurrent(prev); if (autoplay) autoPlayPending.current = true; setMediaSession(prev, audioRef.current!); return q; }); }
   function seek(v: number) { const a = audioRef.current; if (!a) return; a.currentTime = v; setT(v); }
+
+  useEffect(()=>{ (window as any).__playNext = ()=>playNext(true); (window as any).__playPrev = ()=>playPrev(true); }, [queue, current]);
+
+  useEffect(() => {
+    const a = audioRef.current; if (!a) return;
+    const onTime = () => {
+      setT(a.currentTime || 0);
+      // @ts-ignore
+      if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
+        // @ts-ignore
+        navigator.mediaSession.setPositionState({ duration: a.duration || 0, position: a.currentTime || 0, playbackRate: a.playbackRate || 1 });
+      }
+      if (sleepAt && Date.now() >= sleepAt) { a.pause(); setSleepAt(null); }
+    };
+    const onMeta = () => { setDur(a.duration || 0); if (autoPlayPending.current) { a.play().catch(()=>{}); autoPlayPending.current = false; } };
+    const onEnd = () => {
+      if (loop === 'one') { a.currentTime = 0; a.play().catch(()=>{}); return; }
+      if (loop === 'queue') { playNext(true); return; }
+      setT(0);
+    };
+    a.addEventListener('timeupdate', onTime);
+    a.addEventListener('loadedmetadata', onMeta);
+    a.addEventListener('ended', onEnd);
+    return () => { a.removeEventListener('timeupdate', onTime); a.removeEventListener('loadedmetadata', onMeta); a.removeEventListener('ended', onEnd); };
+  }, [current, queue, loop, sleepAt]);
 
   useEffect(() => { try { localStorage.setItem('nd_queue', JSON.stringify(queue)); } catch {} }, [queue]);
   useEffect(() => { try { localStorage.setItem('nd_current', JSON.stringify(current?.id ?? null)); } catch {} }, [current]);
+
+  function startSleep(minutes:number){ const when = Date.now() + minutes*60*1000; setSleepAt(when); }
 
   return (<div dir='rtl' style={{fontFamily:'system-ui,-apple-system,Segoe UI,Tahoma',background:'#f8fafc',minHeight:'100vh'}}>
     <header style={{position:'sticky',top:0,background:'#fff',borderBottom:'1px solid #e5e7eb',zIndex:10}}>
@@ -114,7 +192,7 @@ export default function Home() {
       {err && <div style={{color:'#dc2626',textAlign:'center',marginTop:8}}>{err}</div>}
     </section>
 
-    <main style={{maxWidth:960,margin:'0 auto',padding:'0 16px calc(140px + var(--kb,0)) 16px'}}>
+    <main style={{maxWidth:960,margin:'0 auto',padding:'0 16px calc(160px + var(--kb,0)) 16px'}}>
       <div style={{display:'grid',gap:12}}>
         {items.map(tr=>(<div key={String(tr.id)} className='trackCard' style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8,border:'1px solid #e5e7eb',borderRadius:12,padding:12,background:'#fff'}}>
           <div style={{display:'flex',alignItems:'center',gap:12,minWidth:0,flex:1}}>
@@ -135,21 +213,32 @@ export default function Home() {
     </main>
 
     <footer style={{position:'fixed',bottom:'var(--kb,0)',left:0,right:0,background:'#ffffffee',backdropFilter:'blur(8px)',borderTop:'1px solid #e5e7eb',zIndex:40}}>
-      <div style={{maxWidth:960,margin:'0 auto',padding:'10px 12px',display:'flex',alignItems:'center',gap:12}}>
-        <button onClick={()=>playPrev(true)} title='السابق'>⏮</button>
-        <button onClick={()=>{const a=audioRef.current;if(!a)return;if(a.paused)a.play();else a.pause();}} title='تشغيل/إيقاف'>⏯</button>
-        <button onClick={()=>playNext(true)} title='التالي'>⏭</button>
-        <div style={{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:0}}>
+      <div style={{maxWidth:960,margin:'0 auto',padding:'10px 12px',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          <button onClick={()=>playPrev(true)} title='السابق'>⏮</button>
+          <button onClick={()=>{const a=audioRef.current;if(!a)return;if(a.paused)a.play();else a.pause();}} title='تشغيل/إيقاف'>⏯</button>
+          <button onClick={()=>playNext(true)} title='التالي'>⏭</button>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:220}}>
           <span style={{width:42,textAlign:'left',fontVariantNumeric:'tabular-nums'}}>{fmt(t)}</span>
           <input type='range' min={0} max={Math.max(1,dur)} step={1} value={Math.min(t,dur||0)} onChange={(e)=>{const v=parseFloat(e.target.value); const a=audioRef.current; if(a){a.currentTime=v;} setT(v);}} style={{flex:1}}/>
           <span style={{width:42,textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmt(dur)}</span>
         </div>
-        <button
-          onClick={()=>setOpen(true)}
-          onTouchEnd={()=>setOpen(true)}
-          aria-expanded={open}
-          style={{padding:'6px 10px',border:'1px solid #d1fae5',borderRadius:8}}
-        >
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          <button onClick={() => setLoop(l => l==='none' ? 'queue' : l==='queue' ? 'one' : 'none')}
+                  title={`نمط التكرار: ${loop==='none'?'بدون':loop==='queue'?'القائمة':'المسار'}`}>
+            {loop==='none'?'⏹':loop==='queue'?'🔁':'🔂'}
+          </button>
+          <select onChange={e => { const m = parseInt(e.target.value, 10); if (m>0) { const when = Date.now() + m*60*1000; localStorage.setItem('nd_sleep', JSON.stringify(when)); const a=audioRef.current; setSleepAt(when); } }}
+                  defaultValue="0" title="مؤقّت النوم">
+            <option value="0">بدون مؤقّت</option>
+            <option value="15">15د</option>
+            <option value="30">30د</option>
+            <option value="60">60د</option>
+          </select>
+        </div>
+        <button onClick={()=>setOpen(true)} onTouchEnd={()=>setOpen(true)} aria-expanded={open}
+                style={{padding:'6px 10px',border:'1px solid #d1fae5',borderRadius:8}}>
           قائمة ({queue.length})
         </button>
         <audio ref={audioRef} src={current? `/api/stream/${current.id}`: undefined} preload='metadata'/>

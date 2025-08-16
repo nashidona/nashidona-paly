@@ -1,5 +1,10 @@
 
-Nashidona v3.3.1
-- Mobile fixes: no horizontal shift, clamped keyboard offset, track cards width 100%.
-- Uses /api/search that calls Supabase RPC: global_search & global_search_count.
-- Env vars: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+Nashidona v3.4
+- Media Session API (lock screen controls with artwork)
+- Random playlist on first load via /api/random (RPC: random_tracks)
+- Loop modes + Sleep timer
+- Mobile layout fixes
+
+Env on Vercel:
+NEXT_PUBLIC_SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
