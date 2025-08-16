@@ -236,20 +236,18 @@ export default function Home() {
 
     <main style={{maxWidth:960,margin:'0 auto',padding:'0 16px calc(var(--footerH,160px) + var(--kb,0)) 16px'}}>
       <div style={{display:'grid',gap:12}}>
-        {items.map(tr=>(<div key={String(tr.id)} className='trackCard' style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8,border:'1px solid #e5e7eb',borderRadius:12,padding:12,background:'#fff'}}>
-          <div style={{display:'flex',alignItems:'center',gap:12,minWidth:0,flex:1}}>
-            {tr.cover_url? <img loading='lazy' src={tr.cover_url} width={54} height={54} style={{objectFit:'cover',borderRadius:10}} alt=''/>:<div style={{width:54,height:54,borderRadius:10,background:'#d1fae5'}}/>}
-            <div style={{minWidth:0}}>
-              <div style={{fontWeight:700,color:'#064e3b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={tr.title}>{tr.title}</div>
-              <div style={{fontSize:12,color:'#047857',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tr.album||'—'} {tr.year? `• ${tr.year}`:''}</div>
-              {tr.artist? <div style={{fontSize:12,color:'#065f46'}}>المنشد: {tr.artist}</div>: null}
-            </div>
-          </div>
-          <div className='actions' style={{display:'flex',gap:8}}>
-            <button className='btn-queue' onClick={()=>addToQueue(tr)} style={{padding:'8px 10px',border:'1px solid #d1fae5',borderRadius:8}}>+ قائمة</button>
-            <button className='btn-play' onClick={()=>{playNow(tr);}} style={{padding:'8px 10px',background:'#059669',color:'#fff',borderRadius:8}}>▶ تشغيل</button>
-          </div>
-        </div>))}
+{items.map(tr=>(<div key={String(tr.id)} className='trackCard' style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8,border:'1px solid #e5e7eb',borderRadius:12,padding:12,background:'#fff'}}>
+  <div style={{display:'flex',alignItems:'center',gap:12,minWidth:0,flex:1}}>
+    {tr.cover_url? <img .../> : <div .../>}
+    <div style={{minWidth:0}}>
+      <div style={{fontWeight:700,color:'#064e3b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={tr.title}>{tr.title}</div>
+      <div style={{fontSize:12,color:'#047857',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tr.album||'—'} {tr.year? `• ${tr.year}`:''}</div>
+      {tr.artist? <div style={{fontSize:12,color:'#065f46'}}>المنشد: {tr.artist}</div>: null}
+    </div>
+  </div>
+  ...
+</div>))}
+
       </div>
       <div ref={sentinelRef} style={{height:1}}/>
     </main>
