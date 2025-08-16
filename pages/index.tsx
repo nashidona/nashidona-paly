@@ -49,12 +49,12 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string>('');
 
-  // UI + audio state (declare early)
+  // UI + audio state
   const [open, setOpen] = useState(false);
   const [t, setT] = useState(0);
   const [dur, setDur] = useState(0);
 
-  // SSR-safe initial states (hydrate later from localStorage)
+  // SSR-safe (hydrate later)
   const [queue, setQueue] = useState<Track[]>([]);
   const [current, setCurrent] = useState<Track | null>(null);
   const [loop, setLoop] = useState<LoopMode>('queue');
@@ -63,8 +63,9 @@ export default function Home() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoPlayPending = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const footerRef = useRef<HTMLDivElement | null>(null);
 
-  // hydrate from localStorage on client
+  // hydrate
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -101,7 +102,6 @@ export default function Home() {
     }
   }
 
-  // first load: random if query empty
   useEffect(() => {
     async function firstLoad(){
       if (dq.trim() === '') {
@@ -121,7 +121,6 @@ export default function Home() {
     firstLoad();
   }, [dq]);
 
-  // infinite scroll
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -138,7 +137,6 @@ export default function Home() {
     return () => { io.disconnect(); };
   }, [offset, loading, items.length, count, dq]);
 
-  // body scroll lock when sheet open
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const prev = document.body.style.overflow;
@@ -146,7 +144,7 @@ export default function Home() {
     return () => { document.body.style.overflow = prev; };
   }, [open]);
 
-  // Keyboard offset clamp
+  // keyboard offset
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const vv = (window as any).visualViewport;
@@ -159,6 +157,20 @@ export default function Home() {
     vv.addEventListener('resize', onResize);
     onResize();
     return () => vv.removeEventListener('resize', onResize);
+  }, []);
+
+  // footer height -> bottom padding
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const measure = () => {
+      const h = footerRef.current?.getBoundingClientRect().height || 140;
+      document.documentElement.style.setProperty('--footerH', `${Math.round(h)}px`);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (footerRef.current) ro.observe(footerRef.current);
+    window.addEventListener('resize', measure);
+    return () => { window.removeEventListener('resize', measure); ro.disconnect(); };
   }, []);
 
   function playNow(tr: Track) {
@@ -175,16 +187,13 @@ export default function Home() {
   function playPrev(autoplay = false) { setQueue(q => { if (!q.length) { setCurrent(null); return q; } const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1; const prev = (idx > 0) ? q[idx - 1] : q[q.length - 1]; setCurrent(prev); if (autoplay) autoPlayPending.current = true; setMediaSession(prev, audioRef.current!); return q; }); }
   function seek(v: number) { const a = audioRef.current; if (!a) return; a.currentTime = v; setT(v); }
 
-  // expose next/prev for media session handlers
   useEffect(()=>{ if (typeof window === 'undefined') return; (window as any).__playNext = ()=>playNext(true); (window as any).__playPrev = ()=>playPrev(true); }, [queue, current]);
 
-  // audio events
   useEffect(() => {
     const a = audioRef.current; if (!a) return;
     const onTime = () => {
       setT(a.currentTime || 0);
       if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && 'setPositionState' in (navigator as any).mediaSession) {
-        // @ts-ignore
         (navigator as any).mediaSession.setPositionState({ duration: a.duration || 0, position: a.currentTime || 0, playbackRate: a.playbackRate || 1 });
       }
       if (sleepAt && Date.now() >= sleepAt) { a.pause(); setSleepAt(null); }
@@ -201,7 +210,6 @@ export default function Home() {
     return () => { a.removeEventListener('timeupdate', onTime); a.removeEventListener('loadedmetadata', onMeta); a.removeEventListener('ended', onEnd); };
   }, [current, queue, loop, sleepAt]);
 
-  // persist to localStorage (client only)
   useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_queue', JSON.stringify(queue)); } catch {} }, [queue]);
   useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_current', JSON.stringify(current?.id ?? null)); } catch {} }, [current]);
   useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_loop', loop); } catch {} }, [loop]);
@@ -209,7 +217,7 @@ export default function Home() {
 
   function startSleep(minutes:number){ const when = Date.now() + minutes*60*1000; setSleepAt(when); }
 
-  return (<div dir='rtl' style={{fontFamily:'system-ui,-apple-system,Segoe UI,Tahoma',background:'#f8fafc',minHeight:'100vh'}}>
+  return (<div style={{fontFamily:'system-ui,-apple-system,Segoe UI,Tahoma',background:'#f8fafc',minHeight:'100vh'}}>
     <header style={{position:'sticky',top:0,background:'#fff',borderBottom:'1px solid #e5e7eb',zIndex:10}}>
       <div style={{maxWidth:960,margin:'0 auto',padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
@@ -226,7 +234,7 @@ export default function Home() {
       {err && <div style={{color:'#dc2626',textAlign:'center',marginTop:8}}>{err}</div>}
     </section>
 
-    <main style={{maxWidth:960,margin:'0 auto',padding:'0 16px calc(160px + var(--kb,0)) 16px'}}>
+    <main style={{maxWidth:960,margin:'0 auto',padding:'0 16px calc(var(--footerH,160px) + var(--kb,0)) 16px'}}>
       <div style={{display:'grid',gap:12}}>
         {items.map(tr=>(<div key={String(tr.id)} className='trackCard' style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8,border:'1px solid #e5e7eb',borderRadius:12,padding:12,background:'#fff'}}>
           <div style={{display:'flex',alignItems:'center',gap:12,minWidth:0,flex:1}}>
@@ -246,7 +254,7 @@ export default function Home() {
       <div ref={sentinelRef} style={{height:1}}/>
     </main>
 
-    <footer style={{position:'fixed',bottom:'var(--kb,0)',left:0,right:0,background:'#ffffffee',backdropFilter:'blur(8px)',borderTop:'1px solid #e5e7eb',zIndex:40}}>
+    <footer ref={footerRef} style={{position:'fixed',bottom:'var(--kb,0)',left:0,right:0,background:'#ffffffee',backdropFilter:'blur(8px)',borderTop:'1px solid #e5e7eb',zIndex:40}}>
       <div style={{maxWidth:960,margin:'0 auto',padding:'10px 12px',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <button onClick={()=>playPrev(true)} title='السابق'>⏮</button>
@@ -311,11 +319,14 @@ export default function Home() {
     <style jsx global>{`
       *,*::before,*::after{ box-sizing:border-box }
       html,body{ max-width:100%; overflow-x:hidden; margin:0 }
+      img,video,canvas{ max-width:100%; height:auto; display:block }
+      footer{ left:0; right:0; transform:translateZ(0) }
       @media (max-width: 520px) {
         .trackCard { flex-direction: column; align-items: stretch; width:100%; }
-        .actions { width: 100%; display: grid !important; grid-template-columns: 1fr auto; gap:8px; }
-        .btn-play { width: 100%; }
-        header .stats { display: none; }
+        .trackCard > * { min-width:0; }
+        .actions { width:100%; display:grid !important; grid-template-columns: 1fr auto; gap:8px; }
+        .btn-play { width:100%; }
+        header .stats { display:none; }
       }
       .sheet{ position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.25); }
       .sheet .panel{
