@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 
 type Track = { id: number|string; title: string; album?: string; artist?: string; cover_url?: string; url: string; year?: string };
@@ -236,51 +235,48 @@ export default function Home() {
 
     <main style={{maxWidth:960,margin:'0 auto',padding:'0 16px calc(var(--footerH,160px) + var(--kb,0)) 16px'}}>
       <div style={{display:'grid',gap:12}}>
-{items.map(tr=>(
-  <div key={String(tr.id)} className='trackCard'
-       style={{display:'flex',justifyContent:'space-between',alignItems:'stretch',
-               flexWrap:'wrap',gap:8,border:'1px solid #e5e7eb',borderRadius:12,
-               padding:12,background:'#fff'}}>
+        {items.map(tr=>(
+          <div key={String(tr.id)} className='trackCard'
+               style={{display:'flex',justifyContent:'space-between',alignItems:'stretch',
+                       flexWrap:'wrap',gap:8,border:'1px solid #e5e7eb',borderRadius:12,
+                       padding:12,background:'#fff'}}>
+            {/* صورة يمين + نص يسار (RTL) */}
+            <div className='trackRow'
+                 style={{display:'flex',flexDirection:'row-reverse',alignItems:'flex-start',
+                         gap:12,minWidth:0,flex:1}}>
+              {tr.cover_url
+                ? <img loading='lazy' src={tr.cover_url} width={54} height={54}
+                       style={{objectFit:'cover',borderRadius:10,flex:'0 0 54px'}} alt=''/>
+                : <div style={{width:54,height:54,borderRadius:10,background:'#d1fae5',flex:'0 0 54px'}}/>
+              }
 
-    {/* صورة يمين + نص يسار (RTL) */}
-    <div className='trackRow'
-         style={{display:'flex',flexDirection:'row-reverse',alignItems:'flex-start',
-                 gap:12,minWidth:0,flex:1}}>
-      {tr.cover_url
-        ? <img loading='lazy' src={tr.cover_url} width={54} height={54}
-               style={{objectFit:'cover',borderRadius:10,flex:'0 0 54px'}} alt=''/>
-        : <div style={{width:54,height:54,borderRadius:10,background:'#d1fae5',flex:'0 0 54px'}}/>
-      }
-
-      <div className='trackMeta' style={{minWidth:0,flex:1}}>
-        <div className='trackTitle' title={tr.title}
-             style={{color:'#064e3b',fontWeight:700,lineHeight:1.35}}>
-          {tr.title}
-        </div>
-        <div className='trackSub'
-             style={{fontSize:12,color:'#047857',lineHeight:1.35}}>
-          {tr.album||'—'} {tr.year? `• ${tr.year}`:''}
-        </div>
-        {tr.artist
-          ? <div style={{fontSize:12,color:'#065f46',lineHeight:1.35}}>
-              المنشد: {tr.artist}
+              <div className='trackMeta' style={{minWidth:0,flex:1}}>
+                <div className='trackTitle' title={tr.title}
+                     style={{color:'#064e3b',fontWeight:700,lineHeight:1.35}}>
+                  {tr.title}
+                </div>
+                <div className='trackSub'
+                     style={{fontSize:12,color:'#047857',lineHeight:1.35}}>
+                  {tr.album||'—'} {tr.year? `• ${tr.year}`:''}
+                </div>
+                {tr.artist
+                  ? <div style={{fontSize:12,color:'#065f46',lineHeight:1.35}}>
+                      المنشد: {tr.artist}
+                    </div>
+                  : null}
+              </div>
             </div>
-          : null}
-      </div>
-    </div>
 
-    <div className='actions' style={{display:'flex',gap:8}}>
-      <button className='btn-queue'
-              onClick={()=>addToQueue(tr)}
-              style={{padding:'8px 10px',border:'1px solid #d1fae5',borderRadius:8}}>+ قائمة</button>
-      <button className='btn-play'
-              onClick={()=>{playNow(tr);}}
-              style={{padding:'8px 10px',background:'#059669',color:'#fff',borderRadius:8}}>▶ تشغيل</button>
-    </div>
-  </div>
-))}
-
-
+            <div className='actions' style={{display:'flex',gap:8}}>
+              <button className='btn-queue'
+                      onClick={()=>addToQueue(tr)}
+                      style={{padding:'8px 10px',border:'1px solid #d1fae5',borderRadius:8}}>+ قائمة</button>
+              <button className='btn-play'
+                      onClick={()=>{playNow(tr);}}
+                      style={{padding:'8px 10px',background:'#059669',color:'#fff',borderRadius:8}}>▶ تشغيل</button>
+            </div>
+          </div>
+        ))}
       </div>
       <div ref={sentinelRef} style={{height:1}}/>
     </main>
@@ -352,9 +348,22 @@ export default function Home() {
       html,body{ max-width:100%; overflow-x:hidden; margin:0 }
       img,video,canvas{ max-width:100%; height:auto; display:block }
       footer{ left:0; right:0; transform:translateZ(0) }
+
+      /* محاذاة ثابتة ومنع التمدّد */
+      .trackCard { width:100%; }
+      .trackCard > * { min-width:0; }
+      .trackRow > * { min-width:0; }
+
+      /* النصوص الطويلة: التفاف غير محدود */
+      .trackTitle, .trackSub {
+        white-space: normal;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        display: block;
+      }
+
       @media (max-width: 520px) {
         .trackCard { flex-direction: column; align-items: stretch; width:100%; }
-        .trackCard > * { min-width:0; }
         .actions { width:100%; display:grid !important; grid-template-columns: 1fr auto; gap:8px; }
         .btn-play { width:100%; }
         header .stats { display:none; }
@@ -367,28 +376,6 @@ export default function Home() {
         padding-bottom: calc(10px + env(safe-area-inset-bottom));
       }
       .sheet .handle{ width:44px; height:5px; background:#e5e7eb; border-radius:999px; margin:6px auto 10px; }
-    `
-      /* منع التمدد الأفقي وإجبار المحاذاة المتناسقة */
-.trackCard { width:100%; }
-.trackCard > * { min-width:0; }
-.trackRow > * { min-width:0; }
-img { display:block; }
-
-/* لفّ العنوان والوصف لسطرين (يمكن تغيير الرقم إلى 3) */
-.trackTitle, .trackSub {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  word-break: break-word;          /* يكسر الكلمات الطويلة */
-}
-.trackTitle { -webkit-line-clamp: 2; }
-.trackSub   { -webkit-line-clamp: 2; }
-
-/* شاشة صغيرة: الأزرار على صفين */
-@media (max-width: 520px) {
-  .actions { width:100%; display:grid !important; grid-template-columns: 1fr auto; gap:8px; }
-  .btn-play { width:100%; }
-}
-    }</style>
+    `}</style>
   </div>);
 }
