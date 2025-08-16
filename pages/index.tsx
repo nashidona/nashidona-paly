@@ -310,7 +310,7 @@ export default function Home() {
 
     <style jsx global>{`
       *,*::before,*::after{ box-sizing:border-box }
-      html,body{ max-width:100%; overflow-x:hidden }
+      html,body{ max-width:100%; overflow-x:hidden; margin:0 }
       @media (max-width: 520px) {
         .trackCard { flex-direction: column; align-items: stretch; width:100%; }
         .actions { width: 100%; display: grid !important; grid-template-columns: 1fr auto; gap:8px; }
