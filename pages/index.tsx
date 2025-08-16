@@ -8,7 +8,7 @@ function fmt(sec: number) { if (!isFinite(sec) || sec < 0) return '0:00'; const 
 function useDebounced<T>(value: T, delay = 300) { const [v, setV] = useState(value); useEffect(() => { const t = setTimeout(() => setV(value), delay); return () => clearTimeout(t); }, [value, delay]); return v; }
 
 function setMediaSession(tr: {id:any; title:string; artist?:string; album?:string; cover_url?:string}, a?: HTMLAudioElement) {
-  if (!('mediaSession' in navigator)) return;
+  if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
   const art = tr.cover_url ? [
     { src: tr.cover_url, sizes: '96x96',   type: 'image/png' },
     { src: tr.cover_url, sizes: '192x192', type: 'image/png' },
@@ -34,9 +34,9 @@ function setMediaSession(tr: {id:any; title:string; artist?:string; album?:strin
   // @ts-ignore
   navigator.mediaSession.setActionHandler('seekto', (d:any)=>{ if(!a || d.fastSeek) return; a.currentTime = d.seekTime || 0;});
   // @ts-ignore
-  if (a && ('setPositionState' in navigator.mediaSession)) {
+  if (a && ('setPositionState' in (navigator as any).mediaSession)) {
     // @ts-ignore
-    navigator.mediaSession.setPositionState({ duration: a.duration || 0, position: a.currentTime || 0, playbackRate: a.playbackRate || 1 });
+    (navigator as any).mediaSession.setPositionState({ duration: a.duration || 0, position: a.currentTime || 0, playbackRate: a.playbackRate || 1 });
   }
 }
 
@@ -49,19 +49,37 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string>('');
 
-  const [queue, setQueue] = useState<Track[]>(() => { try { const raw = localStorage.getItem('nd_queue'); return raw? JSON.parse(raw): []; } catch { return []; } });
-  const [current, setCurrent] = useState<Track | null>(() => { try { const raw = localStorage.getItem('nd_current'); const id = raw? JSON.parse(raw): null; const qraw = localStorage.getItem('nd_queue'); const arr: Track[] = qraw? JSON.parse(qraw): []; return id? (arr.find(x => String(x.id) === String(id)) || null) : null; } catch { return null; } });
-  const [t, setT] = useState(0); const [dur, setDur] = useState(0);
-  const [open, setOpen] = useState(false);
+  // SSR-safe initial states
+  const [queue, setQueue] = useState<Track[]>([]);
+  const [current, setCurrent] = useState<Track | null>(null);
+  const [loop, setLoop] = useState<LoopMode>('queue');
+  const [sleepAt, setSleepAt] = useState<number|null>(null);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoPlayPending = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  const [loop, setLoop] = useState<LoopMode>(() => (localStorage.getItem('nd_loop') as LoopMode) || 'queue');
-  useEffect(()=>{ try{ localStorage.setItem('nd_loop', loop);}catch{} }, [loop]);
+  // hydrate from localStorage on client
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const rawQueue = localStorage.getItem('nd_queue');
+      const qArr: Track[] = rawQueue ? JSON.parse(rawQueue) : [];
+      setQueue(Array.isArray(qArr) ? qArr : []);
 
-  const [sleepAt, setSleepAt] = useState<number|null>(() => { try { return JSON.parse(localStorage.getItem('nd_sleep')||'null'); } catch { return null; } });
-  useEffect(()=>{ try{ localStorage.setItem('nd_sleep', JSON.stringify(sleepAt)); } catch{} }, [sleepAt]);
+      const rawCur = localStorage.getItem('nd_current');
+      const curId = rawCur ? JSON.parse(rawCur) : null;
+      if (curId && Array.isArray(qArr)) {
+        const found = qArr.find(x => String(x.id) === String(curId)) || null;
+        setCurrent(found);
+      }
+
+      const rawLoop = localStorage.getItem('nd_loop') as LoopMode | null;
+      if (rawLoop === 'none' || rawLoop === 'queue' || rawLoop === 'one') setLoop(rawLoop);
+      const rawSleep = localStorage.getItem('nd_sleep');
+      if (rawSleep) setSleepAt(JSON.parse(rawSleep));
+    } catch {}
+  }, []);
 
   async function fetchPage(newOffset = 0, append = false) {
     setLoading(true); setErr('');
@@ -85,9 +103,11 @@ export default function Home() {
         try {
           const r = await fetch('/api/random?limit=60');
           const j = await r.json();
-          setItems(j.items || []);
-          setCount((j.items||[]).length);
-          return;
+          if ((j.items || []).length) {
+            setItems(j.items || []);
+            setCount((j.items||[]).length);
+            return;
+          }
         } catch {}
       }
       setOffset(0);
@@ -96,6 +116,7 @@ export default function Home() {
     firstLoad();
   }, [dq]);
 
+  // infinite scroll
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -112,13 +133,17 @@ export default function Home() {
     return () => { io.disconnect(); };
   }, [offset, loading, items.length, count, dq]);
 
+  // body scroll lock when sheet open
   useEffect(() => {
+    if (typeof document === 'undefined') return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = open ? 'hidden' : prev || '';
     return () => { document.body.style.overflow = prev; };
   }, [open]);
 
+  // Keyboard offset clamp
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const vv = (window as any).visualViewport;
     if (!vv) return;
     const onResize = () => {
@@ -143,18 +168,21 @@ export default function Home() {
   function move(id: Track['id'], dir: -1|1) { setQueue(q => { const i = q.findIndex(x => String(x.id) === String(id)); if (i < 0) return q; const j = i + dir; if (j < 0 || j >= q.length) return q; const c=[...q]; const tmp=c[i]; c[i]=c[j]; c[j]=tmp; return c; }); }
   function playNext(autoplay = false) { setQueue(q => { if (!q.length) { setCurrent(null); return q; } const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1; const next = (idx >= 0 && idx < q.length - 1) ? q[idx + 1] : q[0]; setCurrent(next); if (autoplay) autoPlayPending.current = true; setMediaSession(next, audioRef.current!); return q; }); }
   function playPrev(autoplay = false) { setQueue(q => { if (!q.length) { setCurrent(null); return q; } const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1; const prev = (idx > 0) ? q[idx - 1] : q[q.length - 1]; setCurrent(prev); if (autoplay) autoPlayPending.current = true; setMediaSession(prev, audioRef.current!); return q; }); }
-  function seek(v: number) { const a = audioRef.current; if (!a) return; a.currentTime = v; setT(v); }
+  function seek(v: number) { const a = audioRef.current; if (!a) return; a.currentTime = v; }
 
-  useEffect(()=>{ (window as any).__playNext = ()=>playNext(true); (window as any).__playPrev = ()=>playPrev(true); }, [queue, current]);
+  // expose next/prev for media session handlers
+  useEffect(()=>{ if (typeof window === 'undefined') return; (window as any).__playNext = ()=>playNext(true); (window as any).__playPrev = ()=>playPrev(true); }, [queue, current]);
 
+  // audio events
+  const [open, setOpen] = useState(false);
+  const [t, setT] = useState(0); const [dur, setDur] = useState(0);
   useEffect(() => {
     const a = audioRef.current; if (!a) return;
     const onTime = () => {
       setT(a.currentTime || 0);
-      // @ts-ignore
-      if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
+      if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && 'setPositionState' in (navigator as any).mediaSession) {
         // @ts-ignore
-        navigator.mediaSession.setPositionState({ duration: a.duration || 0, position: a.currentTime || 0, playbackRate: a.playbackRate || 1 });
+        (navigator as any).mediaSession.setPositionState({ duration: a.duration || 0, position: a.currentTime || 0, playbackRate: a.playbackRate || 1 });
       }
       if (sleepAt && Date.now() >= sleepAt) { a.pause(); setSleepAt(null); }
     };
@@ -170,8 +198,11 @@ export default function Home() {
     return () => { a.removeEventListener('timeupdate', onTime); a.removeEventListener('loadedmetadata', onMeta); a.removeEventListener('ended', onEnd); };
   }, [current, queue, loop, sleepAt]);
 
-  useEffect(() => { try { localStorage.setItem('nd_queue', JSON.stringify(queue)); } catch {} }, [queue]);
-  useEffect(() => { try { localStorage.setItem('nd_current', JSON.stringify(current?.id ?? null)); } catch {} }, [current]);
+  // persist to localStorage (client only)
+  useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_queue', JSON.stringify(queue)); } catch {} }, [queue]);
+  useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_current', JSON.stringify(current?.id ?? null)); } catch {} }, [current]);
+  useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_loop', loop); } catch {} }, [loop]);
+  useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_sleep', JSON.stringify(sleepAt)); } catch {} }, [sleepAt]);
 
   function startSleep(minutes:number){ const when = Date.now() + minutes*60*1000; setSleepAt(when); }
 
@@ -221,7 +252,7 @@ export default function Home() {
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:220}}>
           <span style={{width:42,textAlign:'left',fontVariantNumeric:'tabular-nums'}}>{fmt(t)}</span>
-          <input type='range' min={0} max={Math.max(1,dur)} step={1} value={Math.min(t,dur||0)} onChange={(e)=>{const v=parseFloat(e.target.value); const a=audioRef.current; if(a){a.currentTime=v;} setT(v);}} style={{flex:1}}/>
+          <input type='range' min={0} max={Math.max(1,dur)} step={1} value={Math.min(t,dur||0)} onChange={(e)=>{const v=parseFloat(e.target.value); const a=audioRef.current; if(a){a.currentTime=v;} }} style={{flex:1}}/>
           <span style={{width:42,textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmt(dur)}</span>
         </div>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
@@ -229,7 +260,7 @@ export default function Home() {
                   title={`نمط التكرار: ${loop==='none'?'بدون':loop==='queue'?'القائمة':'المسار'}`}>
             {loop==='none'?'⏹':loop==='queue'?'🔁':'🔂'}
           </button>
-          <select onChange={e => { const m = parseInt(e.target.value, 10); if (m>0) { const when = Date.now() + m*60*1000; localStorage.setItem('nd_sleep', JSON.stringify(when)); const a=audioRef.current; setSleepAt(when); } }}
+          <select onChange={e => { const m = parseInt(e.target.value, 10); if (m>0) startSleep(m); }}
                   defaultValue="0" title="مؤقّت النوم">
             <option value="0">بدون مؤقّت</option>
             <option value="15">15د</option>
@@ -237,7 +268,7 @@ export default function Home() {
             <option value="60">60د</option>
           </select>
         </div>
-        <button onClick={()=>setOpen(true)} onTouchEnd={()=>setOpen(true)} aria-expanded={open}
+        <button onClick={()=>setOpen(True)} onTouchEnd={()=>setOpen(True)} aria-expanded={open}
                 style={{padding:'6px 10px',border:'1px solid #d1fae5',borderRadius:8}}>
           قائمة ({queue.length})
         </button>
@@ -268,7 +299,7 @@ export default function Home() {
                 </div>
               </div>
             ))}
-            {!queue.length && <div style={{color:'#6b7280'}}>لا يوجد عناصر بعد. أضف من النتائج أعلاه.</div>}
+            {!queue.length and <div style={{color:'#6b7280'}}>لا يوجد عناصر بعد. أضف من النتائج أعلاه.</div>}
           </div>
         </div>
       </div>
