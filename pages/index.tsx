@@ -367,6 +367,28 @@ export default function Home() {
         padding-bottom: calc(10px + env(safe-area-inset-bottom));
       }
       .sheet .handle{ width:44px; height:5px; background:#e5e7eb; border-radius:999px; margin:6px auto 10px; }
-    `}</style>
+    `
+      /* منع التمدد الأفقي وإجبار المحاذاة المتناسقة */
+.trackCard { width:100%; }
+.trackCard > * { min-width:0; }
+.trackRow > * { min-width:0; }
+img { display:block; }
+
+/* لفّ العنوان والوصف لسطرين (يمكن تغيير الرقم إلى 3) */
+.trackTitle, .trackSub {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  word-break: break-word;          /* يكسر الكلمات الطويلة */
+}
+.trackTitle { -webkit-line-clamp: 2; }
+.trackSub   { -webkit-line-clamp: 2; }
+
+/* شاشة صغيرة: الأزرار على صفين */
+@media (max-width: 520px) {
+  .actions { width:100%; display:grid !important; grid-template-columns: 1fr auto; gap:8px; }
+  .btn-play { width:100%; }
+}
+    }</style>
   </div>);
 }
