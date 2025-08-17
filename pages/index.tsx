@@ -69,10 +69,12 @@ export default function Home() {
   const [dur, setDur] = useState(0);
   const [showLyrics, setShowLyrics] = useState<{open:boolean, title?:string, text?:string}>({open:false});
 
+  // queue/player
   const [queue, setQueue] = useState<Track[]>([]);
   const [current, setCurrent] = useState<Track | null>(null);
   const [loop, setLoop] = useState<LoopMode>('queue');
   const [sleepAt, setSleepAt] = useState<number|null>(null);
+  const [hydrated, setHydrated] = useState(false); // <-- مهم لحفظ/استرجاع الحالة
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoPlayPending = useRef(false);
@@ -106,7 +108,7 @@ export default function Home() {
     }
   }
 
-  // أول تحميل: عشوائي + تفعيل التمرير من /api/search
+  // أول تحميل: عشوائي ثم ضبط العد الحقيقي للتمرير
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -126,14 +128,13 @@ export default function Home() {
         } catch {
           if (!cancelled) { setItems([]); setErr('تعذر جلب النتائج الآن'); setHasMore(false); }
         }
-        // العدد الحقيقي + hasMore للتمرير
+        // العدد الحقيقي + hasMore
         try {
           const r2 = await fetch(`/api/search?q=&limit=1&offset=0`);
           const j2 = await r2.json();
           const total = j2?.count || 0;
           if (!cancelled) {
             setCount(total);
-            // حتى لو أخفق total، فعّل محاولة صفحة إضافية واحدة
             setHasMore(total ? (total > initialRandomCount) : true);
           }
         } catch {
@@ -148,7 +149,7 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dq]);
 
-  // تمرير لا نهائي (يعتمد على setOffset(prev=>prev+60) لتفادي إغلاق القيم)
+  // تمرير لا نهائي
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -169,7 +170,7 @@ export default function Home() {
 
     io.observe(el);
     return () => { io.disconnect(); };
-  }, [hasMore, dq]); // لا نضع offset/loading هنا لتجنّب إعادة بناء غير لازمة
+  }, [hasMore, dq]);
 
   // قفل التمرير عند فتح القائمة
   useEffect(() => {
@@ -209,6 +210,31 @@ export default function Home() {
   }, []);
 
   // ====== Queue/Player logic ======
+
+  // استرجاع الحالة من التخزين المحلي
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const rawQueue = localStorage.getItem('nd_queue');
+      const qArr: Track[] = rawQueue ? JSON.parse(rawQueue) : [];
+      setQueue(Array.isArray(qArr) ? qArr : []);
+
+      const rawCur = localStorage.getItem('nd_current');
+      const curId = rawCur ? JSON.parse(rawCur) : null;
+      if (curId && Array.isArray(qArr)) {
+        const found = qArr.find(x => String(x.id) === String(curId)) || null;
+        setCurrent(found || null);
+      }
+
+      const rawLoop = localStorage.getItem('nd_loop') as LoopMode | null;
+      if (rawLoop === 'none' || rawLoop === 'queue' || rawLoop === 'one') setLoop(rawLoop);
+      const rawSleep = localStorage.getItem('nd_sleep');
+      if (rawSleep) setSleepAt(JSON.parse(rawSleep));
+    } catch {}
+    // مهم: ما نكتب لـ localStorage حتى ننتهي من القراءة
+    setHydrated(true);
+  }, []);
+
   function playNow(tr: Track) {
     setCurrent(tr);
     setQueue(q => (q.find(x => String(x.id) === String(tr.id)) ? q : [tr, ...q]));
@@ -249,17 +275,16 @@ export default function Home() {
     return () => { a.removeEventListener('timeupdate', onTime); a.removeEventListener('loadedmetadata', onMeta); a.removeEventListener('ended', onEnd); };
   }, [current, queue, loop, sleepAt]);
 
-  // persist
-  useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_queue', JSON.stringify(queue)); } catch {} }, [queue]);
-  useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_current', JSON.stringify(current?.id ?? null)); } catch {} }, [current]);
-  useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_loop', loop); } catch {} }, [loop]);
-  useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_sleep', JSON.stringify(sleepAt)); } catch {} }, [sleepAt]);
+  // حفظ الحالة محليًا — فقط بعد اكتمال الهيدرايشن
+  useEffect(() => { if (!hydrated || typeof window === 'undefined') return; try { localStorage.setItem('nd_queue', JSON.stringify(queue)); } catch {} }, [queue, hydrated]);
+  useEffect(() => { if (!hydrated || typeof window === 'undefined') return; try { localStorage.setItem('nd_current', JSON.stringify(current?.id ?? null)); } catch {} }, [current, hydrated]);
+  useEffect(() => { if (!hydrated || typeof window === 'undefined') return; try { localStorage.setItem('nd_loop', loop); } catch {} }, [loop, hydrated]);
+  useEffect(() => { if (!hydrated || typeof window === 'undefined') return; try { localStorage.setItem('nd_sleep', JSON.stringify(sleepAt)); } catch {} }, [sleepAt, hydrated]);
 
   function startSleep(minutes:number){ const when = Date.now() + minutes*60*1000; setSleepAt(when); }
 
   // إضافة كل النتائج إلى القائمة
   async function addAllResultsToQueue() {
-    // حالة الصفحة الرئيسية (عشوائي): أضف المعروض
     if (dq.trim() === '') {
       if (!items.length) return;
       setQueue(q => {
@@ -272,7 +297,6 @@ export default function Home() {
       return;
     }
 
-    // حالة البحث: اجلب صفحات حتى سقف منطقي
     const total = (count && count > 0) ? count : items.length;
     const cap = Math.min(total, 200);
     if (cap <= 0) return;
@@ -281,8 +305,8 @@ export default function Home() {
     }
 
     let all = [...items];
-    let nextOffset = items.length; // نكمل مما لدينا
-    const maxLoops = 50; // أمان
+    let nextOffset = items.length;
+    const maxLoops = 50;
     for (let loop=0; all.length < cap && loop < maxLoops; loop++) {
       const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${nextOffset}`);
       if (!r.ok) break;
@@ -393,11 +417,10 @@ export default function Home() {
                 <div className='trackTitle' title={tr.title}
                      style={{color:'#064e3b',fontWeight:700,lineHeight:1.35, display:'flex',alignItems:'center',gap:6}}>
                   <span style={{display:'inline'}}>{tr.title}</span>
-                  {/* نعرض الأيقونة إلا إذا عرفنا يقينًا أنه لا توجد كلمات */}
-                 { (typeof tr.has_lyrics === 'boolean' ? tr.has_lyrics : true) && (
-  <button className='lyricsIcon' title='كلمات' onClick={()=>openLyrics(tr)}>🎼</button>
-)}
-
+                  {/* الأيقونة تظهر فقط عندما has_lyrics === true */}
+                  {tr.has_lyrics === true ? (
+                    <button className='lyricsIcon' title='كلمات' onClick={()=>openLyrics(tr)}>🎼</button>
+                  ) : null}
                 </div>
 
                 <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',margin:'6px 0'}}>
