@@ -1,36 +1,22 @@
-// pages/api/album.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
+const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  try {
-    const titleRaw = req.query.title;
-    const idRaw = req.query.id;
+  const title = typeof req.query.title === 'string' ? req.query.title.trim() : '';
+  if (!title) return res.status(400).json({ error: 'missing title' });
 
-    if (!titleRaw && !idRaw) {
-      return res.status(400).json({ error: 'pass ?title=... or ?id=...' });
-    }
-
-    let q = supabase.from('albums').select('id,title,info').limit(1);
-
-    if (idRaw) {
-      const id = Array.isArray(idRaw) ? idRaw[0] : idRaw;
-      q = q.eq('id', Number(id));
-    } else {
-      const title = Array.isArray(titleRaw) ? titleRaw[0] : titleRaw;
-      q = q.eq('title', title);
-    }
-
-    const { data, error } = await q.single();
-    if (error) return res.status(500).json({ error: error.message });
-
-    return res.status(200).json({ info: (data?.info ?? '') as string, id: data?.id, title: data?.title });
-  } catch (e:any) {
-    return res.status(500).json({ error: e.message || 'server error' });
+  // جرّب تطابق دقيق أولاً
+  let { data, error } = await supabase.from('albums').select('info').eq('title', title).maybeSingle();
+  if (!data || error) {
+    // ثم تقريبي كاحتياط
+    const r = await supabase.from('albums').select('info').ilike('title', title).maybeSingle();
+    data = r.data; error = r.error;
   }
+
+  if (error) return res.status(200).json({ info: '', error: error.message });
+  res.status(200).json({ info: data?.info || '' });
 }
