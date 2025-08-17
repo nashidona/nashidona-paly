@@ -9,19 +9,22 @@ const supabase = createClient(
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const id = Number(req.query.id);
-    if (!id) { res.status(200).json({ lyrics: '' }); return; }
+    const idRaw = req.query.id;
+    const id = Array.isArray(idRaw) ? idRaw[0] : idRaw;
+    const idNum = Number(id);
+    if (!id || Number.isNaN(idNum)) {
+      return res.status(400).json({ error: 'missing id' });
+    }
 
     const { data, error } = await supabase
       .from('tracks')
       .select('lyrics')
-      .eq('id', id)
-      .limit(1)
-      .maybeSingle();
+      .eq('id', idNum)
+      .single();
 
-    if (error) { res.status(200).json({ lyrics: '' }); return; }
-    res.status(200).json({ lyrics: (data?.lyrics || '') });
-  } catch {
-    res.status(200).json({ lyrics: '' });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ lyrics: (data?.lyrics ?? '') as string });
+  } catch (e:any) {
+    return res.status(500).json({ error: e.message || 'server error' });
   }
 }
