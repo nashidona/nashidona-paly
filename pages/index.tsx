@@ -394,7 +394,10 @@ export default function Home() {
                      style={{color:'#064e3b',fontWeight:700,lineHeight:1.35, display:'flex',alignItems:'center',gap:6}}>
                   <span style={{display:'inline'}}>{tr.title}</span>
                   {/* نعرض الأيقونة إلا إذا عرفنا يقينًا أنه لا توجد كلمات */}
-                  { (tr.has_lyrics !== false) ? <button className='lyricsIcon' title='كلمات' onClick={()=>openLyrics(tr)}>🎼</button> : null }
+                 { (typeof tr.has_lyrics === 'boolean' ? tr.has_lyrics : true) && (
+  <button className='lyricsIcon' title='كلمات' onClick={()=>openLyrics(tr)}>🎼</button>
+)}
+
                 </div>
 
                 <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',margin:'6px 0'}}>
