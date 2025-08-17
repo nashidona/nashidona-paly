@@ -16,6 +16,7 @@ type LoopMode = 'none'|'queue'|'one';
 
 function fmt(sec: number) { if (!isFinite(sec) || sec < 0) return '0:00'; const m = Math.floor(sec/60); const s = Math.floor(sec%60); return `${m}:${s.toString().padStart(2,'0')}`; }
 function useDebounced<T>(value: T, delay = 300) { const [v, setV] = useState(value); useEffect(() => { const t = setTimeout(() => setV(value), delay); return () => clearTimeout(t); }, [value, delay]); return v; }
+function shuffle<T>(arr: T[]) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
 
 function setMediaSession(tr: {id:any; title:string; artist?:string; album?:string; cover_url?:string}, a?: HTMLAudioElement) {
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
@@ -57,6 +58,7 @@ export default function Home() {
   const [items, setItems] = useState<Track[]>([]);
   const [count, setCount] = useState<number>(0);
   const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string>('');
   const [albumInfo, setAlbumInfo] = useState<string>('');
@@ -110,38 +112,44 @@ export default function Home() {
       const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${newOffset}`);
       if (!r.ok) throw new Error(String(r.status));
       const j = await r.json();
-      setCount(j.count || 0);
-      setItems(prev => append ? dedup([...prev, ...(j.items || [])]) : dedup(j.items || []));
+      const page = dedup(j.items || []);
+      setCount(typeof j.count === 'number' ? j.count : count);
+      setHasMore((page.length === 60) || (typeof j.count === 'number' ? (newOffset + page.length) < j.count : page.length > 0));
+      setItems(prev => append ? dedup([...prev, ...page]) : page);
     } catch (e:any) {
       setErr('تعذر جلب النتائج الآن'); if (!append) setItems([]);
+      setHasMore(false);
     } finally {
       setLoading(false);
     }
   }
 
   // أول تحميل:
-  // - لو البحث فاضي: نجيب 60 عنصر عشوائي من /api/random
-  //   + نقرأ count الحقيقي من /api/search?q=&limit=1 لنفعّل التمرير اللانهائي لاحقًا
-  // - لو هناك بحث: نستخدم /api/search مباشرة
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setOffset(0);
+      setHasMore(true);
       setErr('');
       if (dq.trim() === '') {
+        // عشوائي + خلط بصري
         try {
           const r = await fetch(`/api/random?limit=60`);
           const j = await r.json();
           if (!cancelled) {
-            setItems(dedup(j.items || []));
+            setItems(dedup(shuffle(j.items || [])));
           }
         } catch {
-          if (!cancelled) { setItems([]); setErr('تعذر جلب النتائج الآن'); }
+          if (!cancelled) { setItems([]); setErr('تعذر جلب النتائج الآن'); setHasMore(false); }
         }
+        // نقرأ العدد الحقيقي لتمكين التمرير
         try {
-          const r2 = await fetch(`/api/search?q=${encodeURIComponent('')}&limit=1&offset=0`);
+          const r2 = await fetch(`/api/search?q=&limit=1&offset=0`);
           const j2 = await r2.json();
-          if (!cancelled) setCount(j2.count || 0);
+          if (!cancelled) {
+            setCount(j2.count || 0);
+            setHasMore((j2.count || 0) > (j?.items?.length || 0));
+          }
         } catch {}
       } else {
         await fetchPage(0,false);
@@ -149,15 +157,16 @@ export default function Home() {
     }
     load();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dq]);
 
-  // تمرير لا نهائي (يستخدم /api/search دومًا — حتى بعد العشوائي — مع إزالة التكرار)
+  // تمرير لا نهائي
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const io = new IntersectionObserver((entries) => {
       entries.forEach(e => {
-        if (e.isIntersecting && !loading && (count === 0 ? false : items.length < count)) {
+        if (e.isIntersecting && !loading && hasMore) {
           const next = offset + 60;
           setOffset(next);
           fetchPage(next, true);
@@ -166,7 +175,7 @@ export default function Home() {
     }, { rootMargin: '200px' });
     io.observe(el);
     return () => { io.disconnect(); };
-  }, [offset, loading, items.length, count, dq]);
+  }, [offset, loading, hasMore, dq]); // لا نعتمد على items.length أو count هنا
 
   // قفل التمرير عند فتح القائمة
   useEffect(() => {
@@ -221,10 +230,10 @@ export default function Home() {
   function playPrev(autoplay = false) { setQueue(q => { if (!q.length) { setCurrent(null); return q; } const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1; const prev = (idx > 0) ? q[idx - 1] : q[q.length - 1]; setCurrent(prev); if (autoplay) autoPlayPending.current = true; setMediaSession({ ...prev, artist: prev.artist || prev.artist_text }, audioRef.current!); return q; }); }
   function seek(v: number) { const a = audioRef.current; if (!a) return; a.currentTime = v; setT(v); }
 
-  // أزرار جهاز القفل
+  // media keys
   useEffect(()=>{ if (typeof window === 'undefined') return; (window as any).__playNext = ()=>playNext(true); (window as any).__playPrev = ()=>playPrev(true); }, [queue, current]);
 
-  // أحداث الصوت
+  // audio events
   useEffect(() => {
     const a = audioRef.current; if (!a) return;
     const onTime = () => {
@@ -246,7 +255,7 @@ export default function Home() {
     return () => { a.removeEventListener('timeupdate', onTime); a.removeEventListener('loadedmetadata', onMeta); a.removeEventListener('ended', onEnd); };
   }, [current, queue, loop, sleepAt]);
 
-  // حفظ الحالة محليًا
+  // persist
   useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_queue', JSON.stringify(queue)); } catch {} }, [queue]);
   useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_current', JSON.stringify(current?.id ?? null)); } catch {} }, [current]);
   useEffect(() => { if (typeof window === 'undefined') return; try { localStorage.setItem('nd_loop', loop); } catch {} }, [loop]);
@@ -256,35 +265,34 @@ export default function Home() {
 
   // إضافة كل النتائج إلى القائمة
   async function addAllResultsToQueue() {
-    // لو البحث فارغ (عشوائي): أضف المعروض فقط
+    // في العشوائي: أضف المعروض
     if (dq.trim() === '') {
       if (!items.length) return;
       setQueue(q => {
         const seen = new Set(q.map(x => String(x.id)));
         const merged = [...q];
-        items.forEach(tr => {
-          const k = String(tr.id);
-          if (!seen.has(k)) { merged.push(tr); seen.add(k); }
-        });
+        items.forEach(tr => { const k = String(tr.id); if (!seen.has(k)) { merged.push(tr); seen.add(k); } });
         return merged;
       });
       alert(`تمت إضافة ${items.length} إلى قائمة التشغيل`);
       return;
     }
 
-    // بحث عادي: نجلب حتى 200 عنصر على صفحات
+    // في البحث: اجلب صفحات حتى 200 عنصر
     const total = count || 0;
-    const cap = Math.min(total, 200);
+    const cap = Math.min(total || 200, 200);
     if (cap <= 0) return;
     if (cap > 120 && !confirm(`سيتم إضافة ${cap} أنشودة إلى القائمة. هل أنت متأكد؟`)) return;
 
     let all = [...items];
-    for (let next = 0; all.length < cap && next < total; next += 60) {
+    const maxLoops = 20; // أمان
+    for (let loop=0, next=0; all.length < cap && loop < maxLoops; loop++, next += 60) {
       const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${next}`);
       if (!r.ok) break;
       const j = await r.json();
-      all = dedup([...all, ...(j.items || [])]);
-      if (!(j.items || []).length) break;
+      const page = Array.isArray(j.items) ? j.items : [];
+      if (!page.length) break;
+      all = dedup([...all, ...page]);
     }
     const slice = all.slice(0, cap);
     setQueue(q => {
@@ -390,7 +398,7 @@ export default function Home() {
                 </div>
 
                 <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',margin:'6px 0'}}>
-                  {/* Chips: القسم الرئيسي/الفرعي (النقر يملأ البحث بالنص فقط) */}
+                  {/* Chips: القسم الرئيسي/الفرعي */}
                   {tr.class_parent && <span role='button' onClick={()=>setQ(tr.class_parent || '')} className='chip'>{tr.class_parent}</span>}
                   {tr.class_child  && <span role='button' onClick={()=>setQ(tr.class_child  || '')} className='chip'>{tr.class_child}</span>}
                 </div>
