@@ -78,28 +78,8 @@ export default function Home() {
   const autoPlayPending = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const footerRef = useRef<HTMLDivElement | null>(null);
-
-  // hydrate
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const rawQueue = localStorage.getItem('nd_queue');
-      const qArr: Track[] = rawQueue ? JSON.parse(rawQueue) : [];
-      setQueue(Array.isArray(qArr) ? qArr : []);
-
-      const rawCur = localStorage.getItem('nd_current');
-      const curId = rawCur ? JSON.parse(rawCur) : null;
-      if (curId && Array.isArray(qArr)) {
-        const found = qArr.find(x => String(x.id) === String(curId)) || null;
-        setCurrent(found);
-      }
-
-      const rawLoop = localStorage.getItem('nd_loop') as LoopMode | null;
-      if (rawLoop === 'none' || rawLoop === 'queue' || rawLoop === 'one') setLoop(rawLoop);
-      const rawSleep = localStorage.getItem('nd_sleep');
-      if (rawSleep) setSleepAt(JSON.parse(rawSleep));
-    } catch {}
-  }, []);
+  const loadingRef = useRef(false);
+  loadingRef.current = loading;
 
   function dedup(arr: Track[]) {
     const seen = new Set<string>();
@@ -112,48 +92,53 @@ export default function Home() {
       const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${newOffset}`);
       if (!r.ok) throw new Error(String(r.status));
       const j = await r.json();
-      const page = dedup(j.items || []);
-      setCount(typeof j.count === 'number' ? j.count : count);
-      setHasMore((page.length === 60) || (typeof j.count === 'number' ? (newOffset + page.length) < j.count : page.length > 0));
+      const page: Track[] = dedup(j.items || []);
+      const total = typeof j.count === 'number' ? j.count : count;
+      setCount(total);
+      setHasMore((page.length === 60) || ((newOffset + page.length) < total));
       setItems(prev => append ? dedup([...prev, ...page]) : page);
     } catch (e:any) {
-      setErr('تعذر جلب النتائج الآن'); if (!append) setItems([]);
+      setErr('تعذر جلب النتائج الآن');
+      if (!append) setItems([]);
       setHasMore(false);
     } finally {
       setLoading(false);
     }
   }
 
-  // أول تحميل:
+  // أول تحميل: عشوائي + تفعيل التمرير من /api/search
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setOffset(0);
       setHasMore(true);
       setErr('');
+
       if (dq.trim() === '') {
-        // عشوائي + خلط بصري
+        // صفحة عشوائية للعرض الأول
         let initialRandomCount = 0;
         try {
           const r = await fetch(`/api/random?limit=60`);
           const j = await r.json();
-          const arr = Array.isArray(j.items) ? j.items : [];
+          const arr: Track[] = Array.isArray(j.items) ? j.items : [];
           initialRandomCount = arr.length;
-          if (!cancelled) {
-            setItems(dedup(shuffle(arr)));
-          }
+          if (!cancelled) setItems(dedup(shuffle(arr)));
         } catch {
           if (!cancelled) { setItems([]); setErr('تعذر جلب النتائج الآن'); setHasMore(false); }
         }
-        // نقرأ العدد الحقيقي لتمكين التمرير
+        // العدد الحقيقي + hasMore للتمرير
         try {
           const r2 = await fetch(`/api/search?q=&limit=1&offset=0`);
           const j2 = await r2.json();
+          const total = j2?.count || 0;
           if (!cancelled) {
-            setCount(j2.count || 0);
-            setHasMore((j2.count || 0) > initialRandomCount);
+            setCount(total);
+            // حتى لو أخفق total، فعّل محاولة صفحة إضافية واحدة
+            setHasMore(total ? (total > initialRandomCount) : true);
           }
-        } catch {}
+        } catch {
+          if (!cancelled) setHasMore(true);
+        }
       } else {
         await fetchPage(0,false);
       }
@@ -163,22 +148,28 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dq]);
 
-  // تمرير لا نهائي
+  // تمرير لا نهائي (يعتمد على setOffset(prev=>prev+60) لتفادي إغلاق القيم)
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
+
     const io = new IntersectionObserver((entries) => {
       entries.forEach(e => {
-        if (e.isIntersecting && !loading && hasMore) {
-          const next = offset + 60;
-          setOffset(next);
+        if (!e.isIntersecting) return;
+        if (loadingRef.current) return;
+        if (!hasMore) return;
+
+        setOffset(prev => {
+          const next = prev + 60;
           fetchPage(next, true);
-        }
+          return next;
+        });
       });
     }, { rootMargin: '200px' });
+
     io.observe(el);
     return () => { io.disconnect(); };
-  }, [offset, loading, hasMore, dq]);
+  }, [hasMore, dq]); // لا نضع offset/loading هنا لتجنّب إعادة بناء غير لازمة
 
   // قفل التمرير عند فتح القائمة
   useEffect(() => {
@@ -268,7 +259,7 @@ export default function Home() {
 
   // إضافة كل النتائج إلى القائمة
   async function addAllResultsToQueue() {
-    // في العشوائي: أضف المعروض
+    // حالة الصفحة الرئيسية (عشوائي): أضف المعروض
     if (dq.trim() === '') {
       if (!items.length) return;
       setQueue(q => {
@@ -281,22 +272,27 @@ export default function Home() {
       return;
     }
 
-    // في البحث: اجلب صفحات حتى 200 عنصر
-    const total = count || 0;
-    const cap = Math.min(total || 200, 200);
+    // حالة البحث: اجلب صفحات حتى سقف منطقي
+    const total = (count && count > 0) ? count : items.length;
+    const cap = Math.min(total, 200);
     if (cap <= 0) return;
-    if (cap > 120 && !confirm(`سيتم إضافة ${cap} أنشودة إلى القائمة. هل أنت متأكد؟`)) return;
+    if (cap > items.length && cap > 120) {
+      if (!confirm(`سيتم إضافة حتى ${cap} أنشودة إلى القائمة. هل أنت متأكد؟`)) return;
+    }
 
     let all = [...items];
-    const maxLoops = 20; // أمان
-    for (let loop=0, next=0; all.length < cap && loop < maxLoops; loop++, next += 60) {
-      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${next}`);
+    let nextOffset = items.length; // نكمل مما لدينا
+    const maxLoops = 50; // أمان
+    for (let loop=0; all.length < cap && loop < maxLoops; loop++) {
+      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${nextOffset}`);
       if (!r.ok) break;
       const j = await r.json();
-      const page = Array.isArray(j.items) ? j.items : [];
+      const page: Track[] = Array.isArray(j.items) ? j.items : [];
       if (!page.length) break;
       all = dedup([...all, ...page]);
+      nextOffset += 60;
     }
+
     const slice = all.slice(0, cap);
     setQueue(q => {
       const seen = new Set(q.map(x => String(x.id)));
@@ -397,7 +393,8 @@ export default function Home() {
                 <div className='trackTitle' title={tr.title}
                      style={{color:'#064e3b',fontWeight:700,lineHeight:1.35, display:'flex',alignItems:'center',gap:6}}>
                   <span style={{display:'inline'}}>{tr.title}</span>
-                  {tr.has_lyrics ? <button className='lyricsIcon' title='كلمات' onClick={()=>openLyrics(tr)}>🎼</button> : null}
+                  {/* نعرض الأيقونة إلا إذا عرفنا يقينًا أنه لا توجد كلمات */}
+                  { (tr.has_lyrics !== false) ? <button className='lyricsIcon' title='كلمات' onClick={()=>openLyrics(tr)}>🎼</button> : null }
                 </div>
 
                 <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',margin:'6px 0'}}>
@@ -465,7 +462,7 @@ export default function Home() {
       </div>
     </footer>
 
-    {/* قائمة التشغيل (مع سحب وإفلات) */}
+    {/* قائمة التشغيل (سحب وإفلات) */}
     {open && (
       <div className='sheet' onClick={()=>setOpen(false)}>
         <div className='panel' onClick={(e)=>e.stopPropagation()}>
