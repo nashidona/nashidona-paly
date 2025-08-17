@@ -9,19 +9,28 @@ const supabase = createClient(
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const title = (req.query.title || '').toString().trim();
-    if (!title) { res.status(200).json({ info: '' }); return; }
+    const titleRaw = req.query.title;
+    const idRaw = req.query.id;
 
-    const { data, error } = await supabase
-      .from('albums')
-      .select('info')
-      .eq('title', title)
-      .limit(1)
-      .maybeSingle();
+    if (!titleRaw && !idRaw) {
+      return res.status(400).json({ error: 'pass ?title=... or ?id=...' });
+    }
 
-    if (error) { res.status(200).json({ info: '' }); return; }
-    res.status(200).json({ info: (data?.info || '') });
-  } catch {
-    res.status(200).json({ info: '' });
+    let q = supabase.from('albums').select('id,title,info').limit(1);
+
+    if (idRaw) {
+      const id = Array.isArray(idRaw) ? idRaw[0] : idRaw;
+      q = q.eq('id', Number(id));
+    } else {
+      const title = Array.isArray(titleRaw) ? titleRaw[0] : titleRaw;
+      q = q.eq('title', title);
+    }
+
+    const { data, error } = await q.single();
+    if (error) return res.status(500).json({ error: error.message });
+
+    return res.status(200).json({ info: (data?.info ?? '') as string, id: data?.id, title: data?.title });
+  } catch (e:any) {
+    return res.status(500).json({ error: e.message || 'server error' });
   }
 }
