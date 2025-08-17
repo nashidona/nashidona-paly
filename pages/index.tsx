@@ -133,11 +133,14 @@ export default function Home() {
       setErr('');
       if (dq.trim() === '') {
         // عشوائي + خلط بصري
+        let initialRandomCount = 0;
         try {
           const r = await fetch(`/api/random?limit=60`);
           const j = await r.json();
+          const arr = Array.isArray(j.items) ? j.items : [];
+          initialRandomCount = arr.length;
           if (!cancelled) {
-            setItems(dedup(shuffle(j.items || [])));
+            setItems(dedup(shuffle(arr)));
           }
         } catch {
           if (!cancelled) { setItems([]); setErr('تعذر جلب النتائج الآن'); setHasMore(false); }
@@ -148,7 +151,7 @@ export default function Home() {
           const j2 = await r2.json();
           if (!cancelled) {
             setCount(j2.count || 0);
-            setHasMore((j2.count || 0) > (j?.items?.length || 0));
+            setHasMore((j2.count || 0) > initialRandomCount);
           }
         } catch {}
       } else {
@@ -175,7 +178,7 @@ export default function Home() {
     }, { rootMargin: '200px' });
     io.observe(el);
     return () => { io.disconnect(); };
-  }, [offset, loading, hasMore, dq]); // لا نعتمد على items.length أو count هنا
+  }, [offset, loading, hasMore, dq]);
 
   // قفل التمرير عند فتح القائمة
   useEffect(() => {
