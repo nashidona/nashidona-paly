@@ -1,31 +1,32 @@
-// pages/api/search.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
+const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const qParam = typeof req.query.q === 'string' ? req.query.q.trim() : '';
-    const lim = Math.min(parseInt(String(req.query.limit ?? '60'), 10) || 60, 120);
-    const off = parseInt(String(req.query.offset ?? '0'), 10) || 0;
+    const q = String(req.query.q ?? '').trim();
+    const limit  = Math.min(parseInt(String(req.query.limit ?? '60')) || 60, 1000);
+    const offset = Math.max(parseInt(String(req.query.offset ?? '0')) || 0, 0);
 
-    // العدّ الإجمالي
-    const { data: total, error: cntErr } = await supabase.rpc('global_search_count', {
-      q: qParam   // ← لا نمرّر null
+    // الصفحة
+    const { data: rows, error: err1 } = await supabase.rpc('global_search', {
+      q,
+      limit_n: limit,   // ← مهم
+      offset_n: offset, // ← مهم
     });
-    if (cntErr) return res.status(500).json({ error: cntErr.message });
+    if (err1) throw err1;
 
-    // الصفحة المطلوبة
-    const { data: rows, error } = await supabase.rpc('global_search', {
-      q: qParam,  // ← لا نمرّر null
-      limit: lim,
-      offset: off,
-    });
-    if (error) return res.status(500).json({ error: error.message });
+    // العدّ
+    const { data: totalArr, error: err2 } = await supabase.rpc('global_search_count', { q });
+    if (err2) throw err2;
+
+    const count =
+      Array.isArray(totalArr)
+        ? (totalArr[0]?.count ?? totalArr[0]?.total ?? 0)
+        : (totalArr as any)?.count ?? 0;
 
     const items = (rows ?? []).map((r: any) => ({
       id: r.id,
@@ -40,8 +41,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       has_lyrics: !!(r.lyrics && String(r.lyrics).trim()),
     }));
 
-    res.status(200).json({ items, count: Number(total || 0) });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message || 'server error' });
+    res.status(200).json({ count, items });
+  } catch (err: any) {
+    res.status(200).json({ count: 0, items: [], error: err?.message || String(err) });
   }
 }
