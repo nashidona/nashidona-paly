@@ -53,11 +53,13 @@ function setMediaSession(tr: {id:any; title:string; artist?:string; album?:strin
 export default function Home() {
   const [q, setQ] = useState('');
   const dq = useDebounced(q, 350);
+
   const [items, setItems] = useState<Track[]>([]);
   const [count, setCount] = useState<number>(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string>('');
+  const [albumInfo, setAlbumInfo] = useState<string>('');
 
   // UI + audio state
   const [open, setOpen] = useState(false);
@@ -117,19 +119,45 @@ export default function Home() {
     }
   }
 
-  // أول تحميل: استخدم /api/search كي يرجع count الصحيح (لا نستخدم random هنا)
+  // أول تحميل:
+  // - لو البحث فاضي: نجيب 60 عنصر عشوائي من /api/random
+  //   + نقرأ count الحقيقي من /api/search?q=&limit=1 لنفعّل التمرير اللانهائي لاحقًا
+  // - لو هناك بحث: نستخدم /api/search مباشرة
   useEffect(() => {
-    setOffset(0);
-    fetchPage(0,false);
+    let cancelled = false;
+    async function load() {
+      setOffset(0);
+      setErr('');
+      if (dq.trim() === '') {
+        try {
+          const r = await fetch(`/api/random?limit=60`);
+          const j = await r.json();
+          if (!cancelled) {
+            setItems(dedup(j.items || []));
+          }
+        } catch {
+          if (!cancelled) { setItems([]); setErr('تعذر جلب النتائج الآن'); }
+        }
+        try {
+          const r2 = await fetch(`/api/search?q=${encodeURIComponent('')}&limit=1&offset=0`);
+          const j2 = await r2.json();
+          if (!cancelled) setCount(j2.count || 0);
+        } catch {}
+      } else {
+        await fetchPage(0,false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
   }, [dq]);
 
-  // تمرير لا نهائي
+  // تمرير لا نهائي (يستخدم /api/search دومًا — حتى بعد العشوائي — مع إزالة التكرار)
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const io = new IntersectionObserver((entries) => {
       entries.forEach(e => {
-        if (e.isIntersecting && !loading && items.length < count) {
+        if (e.isIntersecting && !loading && (count === 0 ? false : items.length < count)) {
           const next = offset + 60;
           setOffset(next);
           fetchPage(next, true);
@@ -226,15 +254,31 @@ export default function Home() {
 
   function startSleep(minutes:number){ const when = Date.now() + minutes*60*1000; setSleepAt(when); }
 
-  // إضافة كل النتائج إلى القائمة (حتى سقف معيّن)
+  // إضافة كل النتائج إلى القائمة
   async function addAllResultsToQueue() {
+    // لو البحث فارغ (عشوائي): أضف المعروض فقط
+    if (dq.trim() === '') {
+      if (!items.length) return;
+      setQueue(q => {
+        const seen = new Set(q.map(x => String(x.id)));
+        const merged = [...q];
+        items.forEach(tr => {
+          const k = String(tr.id);
+          if (!seen.has(k)) { merged.push(tr); seen.add(k); }
+        });
+        return merged;
+      });
+      alert(`تمت إضافة ${items.length} إلى قائمة التشغيل`);
+      return;
+    }
+
+    // بحث عادي: نجلب حتى 200 عنصر على صفحات
     const total = count || 0;
-    const cap = Math.min(total, 200); // سقف لحماية الأداء
+    const cap = Math.min(total, 200);
     if (cap <= 0) return;
     if (cap > 120 && !confirm(`سيتم إضافة ${cap} أنشودة إلى القائمة. هل أنت متأكد؟`)) return;
 
     let all = [...items];
-    // نجلب صفحات من البداية لتفادي أي فجوات
     for (let next = 0; all.length < cap && next < total; next += 60) {
       const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${next}`);
       if (!r.ok) break;
@@ -253,26 +297,17 @@ export default function Home() {
   }
 
   // جلب كلمات عند الطلب
- async function openLyrics(tr: Track) {
-  try {
-    const r = await fetch(`/api/track?id=${tr.id}`);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      setShowLyrics({
-        open: true,
-        title: tr.title,
-        text: (j as any)?.error || 'تعذّر جلب الكلمات حالياً.',
-      });
-      return;
+  async function openLyrics(tr: Track) {
+    try {
+      const r = await fetch(`/api/track?id=${tr.id}`);
+      const j = await r.json();
+      const errText = (j && j.error) ? String(j.error) : '';
+      const txt = (j?.lyrics || '').trim();
+      setShowLyrics({open:true, title: tr.title, text: errText ? errText : (txt || 'لا توجد كلمات متاحة.')});
+    } catch {
+      setShowLyrics({open:true, title: tr.title, text: 'تعذر جلب الكلمات حالياً.'});
     }
-    const j = await r.json();
-    const txt = (j?.lyrics || '').trim();
-    setShowLyrics({ open: true, title: tr.title, text: txt || 'لا توجد كلمات متاحة.' });
-  } catch {
-    setShowLyrics({ open: true, title: tr.title, text: 'تعذّر جلب الكلمات حالياً.' });
   }
-}
-
 
   // بانر معلومات الألبوم عندما تكون النتائج محصورة لألبوم واحد
   const singleAlbum = (() => {
@@ -285,7 +320,19 @@ export default function Home() {
     return null;
   })();
 
-
+  // جلب info للألبوم
+  useEffect(() => {
+    let cancelled = false;
+    if (singleAlbum?.title) {
+      fetch(`/api/album?title=${encodeURIComponent(singleAlbum.title)}`)
+        .then(r => r.json())
+        .then(j => { if (!cancelled) setAlbumInfo((j?.info || '').trim()); })
+        .catch(() => { if (!cancelled) setAlbumInfo(''); });
+    } else {
+      setAlbumInfo('');
+    }
+    return () => { cancelled = true; };
+  }, [singleAlbum?.title]);
 
   // واجهة
   return (<div style={{fontFamily:'system-ui,-apple-system,Segoe UI,Tahoma',background:'#f8fafc',minHeight:'100vh'}}>
@@ -312,6 +359,9 @@ export default function Home() {
           <div style={{lineHeight:1.4}}>
             <div style={{fontWeight:700,color:'#064e3b'}}>ألبوم: {singleAlbum.title}</div>
             <div style={{fontSize:12,color:'#047857'}}>{singleAlbum.year ? `السنة: ${singleAlbum.year}` : ''}</div>
+            {albumInfo && (
+              <div style={{fontSize:12,color:'#374151',marginTop:4,whiteSpace:'pre-wrap'}}>{albumInfo}</div>
+            )}
           </div>
         </div>
       )}
