@@ -9,8 +9,8 @@ type Track = {
   class_parent?: string;
   class_child?: string;
   cover_url?: string;
+  url?: string;
   year?: string;
-  has_lyrics?: boolean;
 };
 type LoopMode = 'none'|'queue'|'one';
 
@@ -58,7 +58,6 @@ export default function Home() {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string>('');
-  const [randomMode, setRandomMode] = useState(true);
 
   // UI + audio state
   const [open, setOpen] = useState(false);
@@ -98,25 +97,13 @@ export default function Home() {
     } catch {}
   }, []);
 
-  function dedup(arr: Track[]) {
-    const seen = new Set<string>();
-    return arr.filter(x => { const k = String(x.id); if (seen.has(k)) return false; seen.add(k); return true; });
-  }
-
-  async function fetchCountOnly(qs: string) {
-    const r = await fetch(`/api/search?q=${encodeURIComponent(qs)}&limit=1&offset=0`);
-    if (!r.ok) return 0;
-    const j = await r.json();
-    return j.count || 0;
-  }
-
-  async function fetchSearch(newOffset = 0, append = false) {
+  async function fetchPage(newOffset = 0, append = false) {
     setLoading(true); setErr('');
     try {
       const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${newOffset}`);
       if (!r.ok) throw new Error(String(r.status));
       const j = await r.json();
-      if (!append) setCount(j.count || 0);
+      setCount(j.count || 0);
       setItems(prev => append ? dedup([...prev, ...(j.items || [])]) : dedup(j.items || []));
     } catch (e:any) {
       setErr('تعذر جلب النتائج الآن'); if (!append) setItems([]);
@@ -125,28 +112,25 @@ export default function Home() {
     }
   }
 
-  async function firstLoad() {
-    const isEmpty = dq.trim() === '';
-    setRandomMode(isEmpty);
-    setOffset(0);
-
-    if (isEmpty) {
-      // أول دفعة عشوائية
-      try {
-        const [randRes, total] = await Promise.all([
-          fetch('/api/random?limit=60').then(r=>r.ok?r.json():{items:[]}),
-          fetchCountOnly('')
-        ]);
-        setItems(dedup(randRes.items || []));
-        setCount(total || (randRes.items?.length||0));
-      } catch { setItems([]); setCount(0); }
-    } else {
-      await fetchSearch(0,false);
+  // أول تحميل: عشوائي إن لم يوجد بحث
+  useEffect(() => {
+    async function firstLoad(){
+      if (dq.trim() === '') {
+        try {
+          const r = await fetch('/api/random?limit=60');
+          const j = await r.json();
+          if ((j.items || []).length) {
+            setItems(dedup(j.items || []));
+            setCount((j.items||[]).length);
+            return;
+          }
+        } catch {}
+      }
+      setOffset(0);
+      fetchPage(0,false);
     }
-  }
-
-  // كلما تغيّر dq نعيد التحميل
-  useEffect(() => { firstLoad(); }, [dq]);
+    firstLoad();
+  }, [dq]);
 
   // تمرير لا نهائي
   useEffect(() => {
@@ -157,25 +141,13 @@ export default function Home() {
         if (e.isIntersecting && !loading && items.length < count) {
           const next = offset + 60;
           setOffset(next);
-          // في الوضع العشوائي: نكمّل من البحث العام q='' لضمان count والانزلاق
-          if (randomMode) {
-            (async ()=>{
-              setLoading(true);
-              try {
-                const r = await fetch(`/api/search?q=&limit=60&offset=${next}`);
-                const j = await r.json();
-                setItems(prev => dedup([...prev, ...(j.items || [])]));
-              } finally { setLoading(false); }
-            })();
-          } else {
-            fetchSearch(next, true);
-          }
+          fetchPage(next, true);
         }
       });
     }, { rootMargin: '200px' });
     io.observe(el);
     return () => { io.disconnect(); };
-  }, [offset, loading, items.length, count, dq, randomMode]);
+  }, [offset, loading, items.length, count, dq]);
 
   // قفل التمرير عند فتح القائمة
   useEffect(() => {
@@ -201,7 +173,6 @@ export default function Home() {
   }, []);
 
   // footer height -> bottom padding
-  const footerRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const measure = () => {
@@ -216,6 +187,10 @@ export default function Home() {
   }, []);
 
   // ====== Queue/Player logic ======
+  function dedup(arr: Track[]) {
+    const seen = new Set<string>();
+    return arr.filter(x => { const k = String(x.id); if (seen.has(k)) return false; seen.add(k); return true; });
+  }
   function playNow(tr: Track) {
     setCurrent(tr);
     setQueue(q => (q.find(x => String(x.id) === String(tr.id)) ? q : [tr, ...q]));
@@ -266,13 +241,15 @@ export default function Home() {
 
   // إضافة كل النتائج إلى القائمة (حتى سقف معيّن)
   async function addAllResultsToQueue() {
-    const total = count || 0;
-    const cap = Math.min(total, 200);
+    const cap = Math.min(count || 0, 200); // سقف لحماية الأداء
     if (cap <= 0) return;
     if (cap > 120 && !confirm(`سيتم إضافة ${cap} أنشودة إلى القائمة. هل أنت متأكد؟`)) return;
 
+    // لو عندنا أقل من cap، نجيب صفحات إضافية
     let all = [...items];
-    for (let next = 0; all.length < cap && next < total; next += 60) {
+    let next = offset;
+    while (all.length < cap && all.length < (count || 0)) {
+      next += 60;
       const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${next}`);
       if (!r.ok) break;
       const j = await r.json();
@@ -289,7 +266,7 @@ export default function Home() {
     alert(`تمت إضافة ${slice.length} إلى قائمة التشغيل`);
   }
 
-  // جلب كلمات عند الطلب
+  // فتح كلمات النشيد عند الطلب
   async function openLyrics(tr: Track) {
     try {
       const r = await fetch(`/api/track?id=${tr.id}`);
@@ -313,26 +290,12 @@ export default function Home() {
     return null;
   })();
 
-  const [albumInfo, setAlbumInfo] = useState<string>('');
-  useEffect(() => {
-    setAlbumInfo('');
-    if (singleAlbum?.title) {
-      (async ()=>{
-        try {
-          const r = await fetch(`/api/album?title=${encodeURIComponent(singleAlbum.title)}`);
-          if (!r.ok) return;
-          const j = await r.json();
-          if (j?.info) setAlbumInfo(String(j.info));
-        } catch {}
-      })();
-    }
-  }, [singleAlbum?.title]);
-
+  // واجهة
   return (<div style={{fontFamily:'system-ui,-apple-system,Segoe UI,Tahoma',background:'#f8fafc',minHeight:'100vh'}}>
     <header style={{position:'sticky',top:0,background:'#fff',borderBottom:'1px solid #e5e7eb',zIndex:10}}>
       <div style={{maxWidth:960,margin:'0 auto',padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
-          <img src='/logo.png' width={36} height={36} alt='logo'/><b>Nashidona • النسخة التجريبية</b>
+          <img src='/logo.png' width={36} height={36} alt='logo'/><b>Nashidona • 3.5.0 مرحلة 1</b>
         </div>
         <div className='stats' style={{fontSize:12,color:'#6b7280'}}>النتائج: {items.length}{count? ` / ${count}`:''}</div>
       </div>
@@ -347,12 +310,11 @@ export default function Home() {
         </div>
       </div>
       {singleAlbum && (
-        <div style={{maxWidth:960,margin:'14px auto 0',padding:'10px 12px',border:'1px solid #e5e7eb',borderRadius:12,background:'#fff',display:'flex',gap:10,alignItems:'flex-start'}}>
-          <img src={singleAlbum.cover} width={48} height={48} style={{borderRadius:10,objectFit:'cover',flex:'0 0 auto'}} alt=''/>
+        <div style={{maxWidth:960,margin:'14px auto 0',padding:'10px 12px',border:'1px solid #e5e7eb',borderRadius:12,background:'#fff',display:'flex',gap:10,alignItems:'center'}}>
+          <img src={singleAlbum.cover} width={48} height={48} style={{borderRadius:10,objectFit:'cover'}} alt=''/>
           <div style={{lineHeight:1.4}}>
             <div style={{fontWeight:700,color:'#064e3b'}}>ألبوم: {singleAlbum.title}</div>
             <div style={{fontSize:12,color:'#047857'}}>{singleAlbum.year ? `السنة: ${singleAlbum.year}` : ''}</div>
-            {albumInfo ? <div style={{fontSize:13,color:'#065f46',marginTop:6,whiteSpace:'pre-wrap'}}>{albumInfo}</div> : null}
           </div>
         </div>
       )}
@@ -366,6 +328,7 @@ export default function Home() {
                style={{display:'flex',justifyContent:'space-between',alignItems:'stretch',
                        flexWrap:'wrap',gap:8,border:'1px solid #e5e7eb',borderRadius:12,
                        padding:12,background:'#fff'}}>
+            {/* صورة يمين + نص يسار (RTL) */}
             <div className='trackRow'
                  style={{display:'flex',flexDirection:'row-reverse',alignItems:'flex-start',
                          gap:12,minWidth:0,flex:1}}>
@@ -374,22 +337,23 @@ export default function Home() {
 
               <div className='trackMeta' style={{minWidth:0,flex:1}}>
                 <div className='trackTitle' title={tr.title}
-                     style={{color:'#064e3b',fontWeight:700,lineHeight:1.35, display:'flex',alignItems:'center',gap:6}}>
-                  <span style={{display:'inline'}}>{tr.title}</span>
-                  {tr.has_lyrics ? <button className='lyricsIcon' title='كلمات' onClick={()=>openLyrics(tr)}>🎼</button> : null}
+                     style={{color:'#064e3b',fontWeight:700,lineHeight:1.35}}>
+                  {tr.title}
                 </div>
 
                 <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',margin:'6px 0'}}>
-                  {tr.class_parent && <span role='button' onClick={()=>setQ(tr.class_parent || '')} className='chip'>{tr.class_parent}</span>}
-                  {tr.class_child  && <span role='button' onClick={()=>setQ(tr.class_child  || '')} className='chip'>{tr.class_child}</span>}
+                  {/* Chips: القسم الرئيسي/الفرعي */}
+                  {tr.class_parent && <span role='button' onClick={()=>setQ(`class:"${tr.class_parent}"`)} className='chip'>{tr.class_parent}</span>}
+                  {tr.class_child  && <span role='button' onClick={()=>setQ(`class:"${tr.class_child}"`)}  className='chip'>{tr.class_child}</span>}
                 </div>
 
+                {/* سطر الألبوم/المنشد/السنة */}
                 <div className='trackSub' style={{fontSize:13,color:'#047857',lineHeight:1.35}}>
-                  {tr.album ? <span role='button' onClick={()=>setQ(tr.album || '') } className='linkish'>الألبوم: {tr.album}</span> : '—'}
+                  {tr.album ? <span role='button' onClick={()=>setQ(`album:"${tr.album}"`) } className='linkish'>الألبوم: {tr.album}</span> : '—'}
                   {tr.year ? <span> • {tr.year}</span> : null}
                   <br/>
-                  {(tr.artist || tr.artist_text)
-                    ? <span role='button' onClick={()=>setQ((tr.artist||tr.artist_text) || '')} className='linkish'>
+                  { (tr.artist || tr.artist_text)
+                    ? <span role='button' onClick={()=>setQ(`artist:"${(tr.artist||tr.artist_text)||''}"`)} className='linkish'>
                         المنشد: {tr.artist || tr.artist_text}
                       </span>
                     : <span style={{color:'#6b7280'}}>—</span>
@@ -401,6 +365,7 @@ export default function Home() {
             <div className='actions' style={{display:'flex',gap:8}}>
               <button className='btn-queue' onClick={()=>addToQueue(tr)} style={{padding:'8px 10px',border:'1px solid #d1fae5',borderRadius:8}}>+ قائمة</button>
               <button className='btn-play' onClick={()=>{playNow(tr);}} style={{padding:'8px 10px',background:'#059669',color:'#fff',borderRadius:8}}>▶ تشغيل</button>
+              <button title='كلمات' onClick={()=>openLyrics(tr)} style={{padding:'8px 10px',border:'1px solid #e5e7eb',borderRadius:8}}>🎼 كلمات</button>
             </div>
           </div>
         ))}
@@ -442,27 +407,14 @@ export default function Home() {
       </div>
     </footer>
 
+    {/* قائمة التشغيل (مع سحب وإفلات) */}
     {open && (
       <div className='sheet' onClick={()=>setOpen(false)}>
         <div className='panel' onClick={(e)=>e.stopPropagation()}>
           <div className='handle'/>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8, gap:8, flexWrap:'wrap'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
             <b>قائمة التشغيل</b>
-            <div style={{display:'flex',gap:6,alignItems:'center'}}>
-              <button onClick={() => setLoop(l => l==='none' ? 'queue' : l==='queue' ? 'one' : 'none')}
-                      title={`نمط التكرار: ${loop==='none'?'بدون':loop==='queue'?'القائمة':'المسار'}`}>
-                {loop==='none'?'⏹':loop==='queue'?'🔁':'🔂'}
-              </button>
-              <button onClick={shuffleQueue} title='خلط القائمة'>🔀</button>
-              <select onChange={e => { const m = parseInt(e.target.value, 10); if (m>0) startSleep(m); }}
-                      defaultValue="0" title="مؤقّت النوم">
-                <option value="0">بدون مؤقّت</option>
-                <option value="15">15د</option>
-                <option value="30">30د</option>
-                <option value="60">60د</option>
-              </select>
-            </div>
-            <div style={{display:'flex',gap:8,marginInlineStart:'auto'}}>
+            <div style={{display:'flex',gap:8}}>
               <button onClick={()=>setOpen(false)}>إغلاق</button>
               <button onClick={clearQueue} disabled={!queue.length}>تفريغ الكل</button>
             </div>
@@ -493,6 +445,7 @@ export default function Home() {
       </div>
     )}
 
+    {/* لوحة كلمات النشيد */}
     {showLyrics.open && (
       <div className='sheet' onClick={()=>setShowLyrics({open:false})}>
         <div className='panel' onClick={(e)=>e.stopPropagation()}>
@@ -529,13 +482,10 @@ export default function Home() {
         overflow-wrap: anywhere;
         display: block;
       }
-      .lyricsIcon {
-        border:1px solid #e5e7eb; border-radius:6px; padding:2px 6px; font-size:12px; background:#fff; cursor:pointer;
-      }
 
       @media (max-width: 520px) {
         .trackCard { flex-direction: column; align-items: stretch; width:100%; }
-        .actions { width:100%; display:grid !important; grid-template-columns: 1fr auto; gap:8px; }
+        .actions { width:100%; display:grid !important; grid-template-columns: 1fr auto auto; gap:8px; }
         .btn-play { width:100%; }
         header .stats { display:none; }
       }
