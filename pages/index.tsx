@@ -253,16 +253,26 @@ export default function Home() {
   }
 
   // جلب كلمات عند الطلب
-  async function openLyrics(tr: Track) {
-    try {
-      const r = await fetch(`/api/track?id=${tr.id}`);
-      const j = await r.json();
-      const txt = (j?.lyrics || '').trim();
-      setShowLyrics({open:true, title: tr.title, text: txt || 'لا توجد كلمات متاحة.'});
-    } catch {
-      setShowLyrics({open:true, title: tr.title, text: 'تعذر جلب الكلمات حالياً.'});
+ async function openLyrics(tr: Track) {
+  try {
+    const r = await fetch(`/api/track?id=${tr.id}`);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setShowLyrics({
+        open: true,
+        title: tr.title,
+        text: (j as any)?.error || 'تعذّر جلب الكلمات حالياً.',
+      });
+      return;
     }
+    const j = await r.json();
+    const txt = (j?.lyrics || '').trim();
+    setShowLyrics({ open: true, title: tr.title, text: txt || 'لا توجد كلمات متاحة.' });
+  } catch {
+    setShowLyrics({ open: true, title: tr.title, text: 'تعذّر جلب الكلمات حالياً.' });
   }
+}
+
 
   // بانر معلومات الألبوم عندما تكون النتائج محصورة لألبوم واحد
   const singleAlbum = (() => {
@@ -274,6 +284,8 @@ export default function Home() {
     }
     return null;
   })();
+
+
 
   // واجهة
   return (<div style={{fontFamily:'system-ui,-apple-system,Segoe UI,Tahoma',background:'#f8fafc',minHeight:'100vh'}}>
