@@ -3,7 +3,6 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { Readable } from 'node:stream';
 
-// تعطيل حدّ حجم الاستجابة حتى لا يقطع الستريم لملفات MP3 كبيرة
 export const config = {
   api: {
     responseLimit: false,
@@ -15,24 +14,29 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
 const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
-// نطبّق ترميز URL لكل "مقطع" في المسار حتى لو كان فيه عربي/مسافات
+// ترميز كل مقطع من المسار (للتعامل مع العربية/المسافات)
 function encodePathSegments(u: string): string {
   try {
     const url = new URL(u);
-    const segs = url.pathname.split('/').map(s => {
-      try { return encodeURIComponent(decodeURIComponent(s)); } catch { return encodeURIComponent(s); }
-    });
-    // نحافظ على الـ "/" بين المقاطع
-    url.pathname = segs.join('/');
+    url.pathname = url.pathname
+      .split('/')
+      .map(seg => {
+        try { return encodeURIComponent(decodeURIComponent(seg)); }
+        catch { return encodeURIComponent(seg); }
+      })
+      .join('/');
     return url.toString();
   } catch {
     return u;
   }
 }
 
+function isMediaFire(u: string) {
+  try { return new URL(u).hostname.includes('mediafire.com'); } catch { return false; }
+}
+
 function isProbablyAudio(resp: Response) {
   const ct = resp.headers.get('content-type') || '';
-  // MediaFire أحيانًا يرسل application/octet-stream
   return ct.includes('audio/') || ct.includes('octet-stream') || ct.includes('mpeg');
 }
 
@@ -41,10 +45,11 @@ async function fetchWithHeaders(u: string, req: NextApiRequest) {
   const ua = (req.headers['user-agent'] as string) || 'Mozilla/5.0';
   const headers: Record<string, string> = {
     'User-Agent': ua,
+    // بعض المستضيفين يتطلبون Referer/Origin
     'Referer': 'https://www.mediafire.com/',
+    'Origin': 'https://www.mediafire.com',
     'Accept': 'audio/*;q=0.9,application/octet-stream;q=0.8,*/*;q=0.5',
     'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
-    // نتجنب ضغط المحتوى مع Range
     'Accept-Encoding': 'identity',
     'Connection': 'keep-alive',
   };
@@ -54,28 +59,8 @@ async function fetchWithHeaders(u: string, req: NextApiRequest) {
     method: 'GET',
     headers,
     redirect: 'follow',
-    // مهم لبعض مضيفي الملفات
     cache: 'no-store',
   });
-}
-
-// نمط تصحيح: ?debug=1 يرجّع معلومات بدلاً من الستريم للمساعدة على التشخيص
-async function debugProbe(u: string, req: NextApiRequest) {
-  const tryUrls = [u, encodePathSegments(u)];
-  const out: any[] = [];
-  for (const cand of tryUrls) {
-    try {
-      const r = await fetchWithHeaders(cand, req);
-      const ct = r.headers.get('content-type') || '';
-      const cl = r.headers.get('content-length') || '';
-      out.push({ url: cand, status: r.status, ok: r.ok, contentType: ct, contentLength: cl, isAudio: isProbablyAudio(r) });
-      try { r.body?.cancel(); } catch {}
-      if (r.ok && isProbablyAudio(r)) break;
-    } catch (e: any) {
-      out.push({ url: cand, error: String(e?.message || e) });
-    }
-  }
-  return out;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -94,35 +79,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const originalUrl = String(data.source_url);
+    const encodedUrl  = encodePathSegments(originalUrl);
 
-    // نمط التصحيح: جرّب /api/stream/123?debug=1
-    if (String(req.query.debug || '') === '1') {
-      const debug = await debugProbe(originalUrl, req);
-      res.status(200).json({ ok: true, debug });
+    // ✅ MediaFire: لا نحاول التحميل من السيرفر (غالبًا 403 على IPات Vercel)
+    // نعيد توجيه المتصفح مباشرة؛ المتصفح سيطلب الملف من MediaFire برأسه الخاص IPه الخاص.
+    if (isMediaFire(originalUrl)) {
+      res.setHeader('Cache-Control', 'no-store');
+      res.writeHead(302, { Location: encodedUrl });
+      res.end();
       return;
     }
 
-    // نحاول برابطين: الأصلي، ثم مع ترميز مقاطع المسار
-    const candidates = [originalUrl, encodePathSegments(originalUrl)];
+    // باقي الاستضافات: نحاول ستريم من السيرفر (كما السابق)
+    const candidates = [originalUrl, encodedUrl];
     let resp: Response | null = null;
     for (const cand of candidates) {
       const r = await fetchWithHeaders(cand, req);
       if (r.ok && r.body && isProbablyAudio(r)) { resp = r; break; }
-      // بعض الأحيان يرجّع 200 HTML: نتأكد من نوع المحتوى
-      if (r.ok && r.body && (r.headers.get('content-disposition') || '').includes('.mp3')) {
+      // fallback: أحيانًا يحدّد الاسم في Content-Disposition
+      if (r.ok && r.body && (r.headers.get('content-disposition') || '').match(/\.(mp3|m4a|flac|wav)/i)) {
         resp = r; break;
       }
       try { r.body?.cancel(); } catch {}
     }
 
     if (!resp) {
-      // آخر محاولة: نُظهر نتيجة فشل مفصّلة
-      const dbg = await debugProbe(originalUrl, req);
-      res.status(502).json({ ok: false, error: 'upstream not audio or failed', probe: dbg });
-      return;
+      return res.status(502).json({ ok: false, error: 'upstream not audio or failed' });
     }
 
-    // تمكين الهيدرز المهمة
+    // مرّر رؤوس مهمة
     const passHeaders = [
       'content-type', 'content-length', 'accept-ranges', 'content-range',
       'etag', 'last-modified', 'cache-control', 'content-disposition'
@@ -131,10 +116,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const v = resp.headers.get(h);
       if (v) res.setHeader(h, v);
     }
-    // نمرّر كود الحالة كما هو (200/206…)
     res.status(resp.status);
 
-    // بثّ الجسم
     const nodeStream = Readable.fromWeb(resp.body as any);
     nodeStream.pipe(res);
     nodeStream.on('error', () => { try { res.destroy(); } catch {} });
