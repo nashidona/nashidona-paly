@@ -69,6 +69,13 @@ export default function Home() {
   const [dur, setDur] = useState(0);
   const [showLyrics, setShowLyrics] = useState<{open:boolean, title?:string, text?:string}>({open:false});
 
+  // Feedback UI
+  const [fbOpen, setFbOpen] = useState(false);
+  const [fbMsg, setFbMsg] = useState('');
+  const [fbEmail, setFbEmail] = useState('');
+  const [fbBusy, setFbBusy] = useState(false);
+  const [fbOk, setFbOk] = useState<string>('');
+
   // queue/player
   const [queue, setQueue] = useState<Track[]>([]);
   const [current, setCurrent] = useState<Track | null>(null);
@@ -87,9 +94,9 @@ export default function Home() {
   const lastProgressRef = useRef<number>(0);
   const retryRef = useRef<number>(0);
   const watchdogRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const MAX_RETRIES = 2;         // نحاول مرتين قبل التخطي
-  const STUCK_MS    = 15000;     // 15ث عدم تقدم = شبه معطوب
-  const CHECK_EVERY = 4000;      // كل 4 ثواني نفحص
+  const MAX_RETRIES = 2;
+  const STUCK_MS    = 15000;
+  const CHECK_EVERY = 4000;
 
   function startWatchdog(a: HTMLAudioElement | null) {
     stopWatchdog();
@@ -128,7 +135,7 @@ export default function Home() {
       const page: Track[] = dedup(j.items || []);
       const total = typeof j.count === 'number' ? j.count : count;
       setCount(total);
-      setHasMore((newOffset + page.length) < total);
+      setHasMore((page.length === 60) || ((newOffset + page.length) < total));
       setItems(prev => append ? dedup([...prev, ...page]) : page);
     } catch (e:any) {
       setErr('تعذر جلب النتائج الآن');
@@ -354,9 +361,7 @@ export default function Home() {
         playNext(true);
       }
     };
-    const onStalled = () => {
-      // يترك للحارس
-    };
+    const onStalled = () => { /* يHandled by watchdog */ };
     const onAbort = () => {
       if (retryRef.current < MAX_RETRIES) {
         retryRef.current++;
@@ -437,7 +442,7 @@ export default function Home() {
     alert(`تمت إضافة ${slice.length} إلى قائمة التشغيل`);
   }
 
-  // جلب كلمات عند الطلب (للإصدار القادم)
+  // جلب كلمات عند الطلب (إصدار لاحق)
   async function openLyrics(tr: Track) {
     try {
       const r = await fetch(`/api/track?id=${tr.id}`);
@@ -475,12 +480,41 @@ export default function Home() {
     return () => { cancelled = true; };
   }, [singleAlbum?.title]);
 
-  // واجهة
+  // إرسال ملاحظة
+  async function submitFeedback() {
+    if (!fbMsg.trim()) { setFbOk('من فضلك اكتب ملاحظتك أولاً.'); return; }
+    setFbBusy(true); setFbOk('');
+    try {
+      const ua = typeof navigator!=='undefined' ? navigator.userAgent : '';
+      const page = typeof location!=='undefined' ? location.href : '';
+      const track_id = current ? current.id : null;
+      const r = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ message: fbMsg.trim(), email: fbEmail.trim() || null, ua, page, track_id })
+      });
+      const j = await r.json();
+      if (j && j.ok) {
+        setFbOk('✅ تم إرسال ملاحظتك، شكراً لك.');
+        setFbMsg('');
+        setFbEmail('');
+        setTimeout(()=>{ setFbOpen(false); setFbOk(''); }, 1200);
+      } else {
+        setFbOk('تم الاستلام محلياً، سنراجعها (قد لا يكون التخزين مفعلاً بعد).');
+      }
+    } catch {
+      setFbOk('تعذّر الإرسال الآن، حاول لاحقاً.');
+    } finally {
+      setFbBusy(false);
+    }
+  }
+
   return (<div style={{fontFamily:'system-ui,-apple-system,Segoe UI,Tahoma',background:'#f8fafc',minHeight:'100vh'}}>
     <header style={{position:'sticky',top:0,background:'#fff',borderBottom:'1px solid #e5e7eb',zIndex:10}}>
-      <div style={{maxWidth:960,margin:'0 auto',padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div style={{display:'flex',alignItems:'center',gap:12}}>
+      <div style={{maxWidth:960,margin:'0 auto',padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
           <img src='/logo.png' width={36} height={36} alt='logo'/><b>Nashidona • النسخة التجريبية</b>
+          <button onClick={()=>setFbOpen(true)} className="fbBtn" title="أرسل ملاحظة">💬 ملاحظات</button>
         </div>
         <div className='stats' style={{fontSize:12,color:'#6b7280'}}>النتائج: {items.length}{count? ` / ${count}`:''}</div>
       </div>
@@ -529,12 +563,10 @@ export default function Home() {
                     <button className='lyricsIcon' title='كلمات' onClick={()=>openLyrics(tr)}>🎼</button>
                   ) : null}
                 </div>
-
                 <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',margin:'6px 0'}}>
                   {tr.class_parent && <span role='button' onClick={()=>setQ(tr.class_parent || '')} className='chip'>{tr.class_parent}</span>}
                   {tr.class_child  && <span role='button' onClick={()=>setQ(tr.class_child  || '')} className='chip'>{tr.class_child}</span>}
                 </div>
-
                 <div className='trackSub' style={{fontSize:13,color:'#047857',lineHeight:1.35}}>
                   {tr.album ? <span role='button' onClick={()=>setQ(tr.album || '') } className='linkish'>الألبوم: {tr.album}</span> : '—'}
                   {tr.year ? <span> • {tr.year}</span> : null}
@@ -548,7 +580,6 @@ export default function Home() {
                 </div>
               </div>
             </div>
-
             <div className='actions' style={{display:'flex',gap:8}}>
               <button className='btn-queue' onClick={()=>addToQueue(tr)} style={{padding:'8px 10px',border:'1px solid #d1fae5',borderRadius:8}}>+ قائمة</button>
               <button className='btn-play' onClick={()=>{playNow(tr);}} style={{padding:'8px 10px',background:'#059669',color:'#fff',borderRadius:8}}>▶ تشغيل</button>
@@ -593,6 +624,7 @@ export default function Home() {
       </div>
     </footer>
 
+    {/* قائمة التشغيل */}
     {open && (
       <div className='sheet' onClick={()=>setOpen(false)}>
         <div className='panel' onClick={(e)=>e.stopPropagation()}>
@@ -644,6 +676,7 @@ export default function Home() {
       </div>
     )}
 
+    {/* لوحة كلمات النشيد */}
     {showLyrics.open && (
       <div className='sheet' onClick={()=>setShowLyrics({open:false})}>
         <div className='panel' onClick={(e)=>e.stopPropagation()}>
@@ -654,6 +687,31 @@ export default function Home() {
           </div>
           <div style={{maxHeight:'56vh',overflowY:'auto',whiteSpace:'pre-wrap',lineHeight:1.7}}>
             {showLyrics.text || '—'}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* زر طافٍ للملاحظات على الجوال */}
+    <button className="fbFab" onClick={()=>setFbOpen(true)} title="أرسل ملاحظة">💬</button>
+
+    {/* نافذة الملاحظات */}
+    {fbOpen && (
+      <div className='sheet' onClick={()=>setFbOpen(false)}>
+        <div className='panel' onClick={(e)=>e.stopPropagation()}>
+          <div className='handle'/>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+            <b>إرسال ملاحظة</b>
+            <button onClick={()=>setFbOpen(false)}>إغلاق</button>
+          </div>
+          <div style={{display:'grid',gap:8}}>
+            <textarea value={fbMsg} onChange={e=>setFbMsg(e.target.value)} rows={5} placeholder="اكتب ملاحظتك أو المشكلة التي واجهتك..." style={{width:'100%',padding:10,border:'1px solid #e5e7eb',borderRadius:8}}/>
+            <input value={fbEmail} onChange={e=>setFbEmail(e.target.value)} placeholder="بريدك (اختياري)" style={{padding:10,border:'1px solid #e5e7eb',borderRadius:8}}/>
+            <button disabled={fbBusy} onClick={submitFeedback} style={{padding:'10px 12px',background:'#059669',color:'#fff',borderRadius:8}}>
+              {fbBusy? 'جارٍ الإرسال...' : 'إرسال'}
+            </button>
+            {fbOk && <div style={{fontSize:13,color:'#065f46'}}>{fbOk}</div>}
+            <div style={{fontSize:12,color:'#6b7280'}}>سيتم إرفاق بعض المعلومات التقنية (نوع الجهاز/المتصفح، الصفحة الحالية، والمعرّف إن كانت هناك أنشودة قيد التشغيل) لمساعدتنا في التشخيص.</div>
           </div>
         </div>
       </div>
@@ -674,14 +732,14 @@ export default function Home() {
       .trackCard { width:100%; }
       .trackCard > * { min-width:0; }
       .trackRow > * { min-width:0; }
-      .trackTitle, .trackSub {
-        white-space: normal;
-        word-break: break-word;
-        overflow-wrap: anywhere;
-        display: block;
-      }
-      .lyricsIcon {
-        border:1px solid #e5e7eb; border-radius:6px; padding:2px 6px; font-size:12px; background:#fff; cursor:pointer;
+      .trackTitle, .trackSub { white-space: normal; word-break: break-word; overflow-wrap: anywhere; display: block; }
+      .lyricsIcon { border:1px solid #e5e7eb; border-radius:6px; padding:2px 6px; font-size:12px; background:#fff; cursor:pointer; }
+
+      .fbBtn { padding:4px 8px; border:1px solid #e5e7eb; background:#fff; border-radius:8px; font-size:12px; }
+      .fbFab {
+        position: fixed; left: 12px; bottom: calc(var(--kb,0) + var(--footerH,160px) + 12px);
+        z-index: 50; border:1px solid #e5e7eb; background:#fff; width:42px; height:42px; border-radius:999px;
+        display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.12);
       }
 
       @media (max-width: 520px) {
