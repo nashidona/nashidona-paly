@@ -74,7 +74,7 @@ export default function Home() {
   const [current, setCurrent] = useState<Track | null>(null);
   const [loop, setLoop] = useState<LoopMode>('queue');
   const [sleepAt, setSleepAt] = useState<number|null>(null);
-  const [hydrated, setHydrated] = useState(false); // <-- مهم لحفظ/استرجاع الحالة
+  const [hydrated, setHydrated] = useState(false); // لا نحفظ قبل القراءة
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoPlayPending = useRef(false);
@@ -82,6 +82,37 @@ export default function Home() {
   const footerRef = useRef<HTMLDivElement | null>(null);
   const loadingRef = useRef(false);
   loadingRef.current = loading;
+
+  // مراقبة التعليق/العطب
+  const lastProgressRef = useRef<number>(0);
+  const retryRef = useRef<number>(0);
+  const watchdogRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const MAX_RETRIES = 2;         // نحاول مرتين قبل التخطي
+  const STUCK_MS    = 15000;     // 15ث عدم تقدم = شبه معطوب
+  const CHECK_EVERY = 4000;      // كل 4 ثواني نفحص
+
+  function startWatchdog(a: HTMLAudioElement | null) {
+    stopWatchdog();
+    if (!a) return;
+    lastProgressRef.current = Date.now();
+    watchdogRef.current = setInterval(() => {
+      if (!a || a.paused) return;
+      const since = Date.now() - lastProgressRef.current;
+      if (since > STUCK_MS) {
+        if (retryRef.current < MAX_RETRIES) {
+          retryRef.current++;
+          try { a.load(); a.play().catch(()=>{}); } catch {}
+          lastProgressRef.current = Date.now();
+        } else {
+          reportBad('stuck_no_progress', `no progress for ${since}ms after ${retryRef.current} retries`);
+          playNext(true);
+        }
+      }
+    }, CHECK_EVERY);
+  }
+  function stopWatchdog() {
+    if (watchdogRef.current) { clearInterval(watchdogRef.current); watchdogRef.current = null; }
+  }
 
   function dedup(arr: Track[]) {
     const seen = new Set<string>();
@@ -97,7 +128,7 @@ export default function Home() {
       const page: Track[] = dedup(j.items || []);
       const total = typeof j.count === 'number' ? j.count : count;
       setCount(total);
-      setHasMore((page.length === 60) || ((newOffset + page.length) < total));
+      setHasMore((newOffset + page.length) < total);
       setItems(prev => append ? dedup([...prev, ...page]) : page);
     } catch (e:any) {
       setErr('تعذر جلب النتائج الآن');
@@ -117,7 +148,6 @@ export default function Home() {
       setErr('');
 
       if (dq.trim() === '') {
-        // صفحة عشوائية للعرض الأول
         let initialRandomCount = 0;
         try {
           const r = await fetch(`/api/random?limit=60`);
@@ -128,7 +158,6 @@ export default function Home() {
         } catch {
           if (!cancelled) { setItems([]); setErr('تعذر جلب النتائج الآن'); setHasMore(false); }
         }
-        // العدد الحقيقي + hasMore
         try {
           const r2 = await fetch(`/api/search?q=&limit=1&offset=0`);
           const j2 = await r2.json();
@@ -209,9 +238,7 @@ export default function Home() {
     return () => { window.removeEventListener('resize', measure); ro.disconnect(); };
   }, []);
 
-  // ====== Queue/Player logic ======
-
-  // استرجاع الحالة من التخزين المحلي
+  // ====== استرجاع الحالة من التخزين المحلي ======
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -231,14 +258,15 @@ export default function Home() {
       const rawSleep = localStorage.getItem('nd_sleep');
       if (rawSleep) setSleepAt(JSON.parse(rawSleep));
     } catch {}
-    // مهم: ما نكتب لـ localStorage حتى ننتهي من القراءة
     setHydrated(true);
   }, []);
 
+  // ====== وظائف التشغيل ======
   function playNow(tr: Track) {
     setCurrent(tr);
     setQueue(q => (q.find(x => String(x.id) === String(tr.id)) ? q : [tr, ...q]));
     autoPlayPending.current = true;
+    retryRef.current = 0;
     setMediaSession({ ...tr, artist: tr.artist || tr.artist_text }, audioRef.current!);
   }
   function addToQueue(tr: Track) { setQueue(q => (q.find(x => String(x.id) === String(tr.id)) ? q : [...q, tr])); }
@@ -246,36 +274,118 @@ export default function Home() {
   function removeFromQueue(id: Track['id']) { setQueue(q => q.filter(x => String(x.id) !== String(id))); if (current && String(current.id) === String(id)) setTimeout(() => playNext(true), 0); }
   function move(id: Track['id'], dir: -1|1) { setQueue(q => { const i = q.findIndex(x => String(x.id) === String(id)); if (i < 0) return q; const j = i + dir; if (j < 0 || j >= q.length) return q; const c=[...q]; const tmp=c[i]; c[i]=c[j]; c[j]=tmp; return c; }); }
   function shuffleQueue() { setQueue(q => { const c=[...q]; for (let i=c.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [c[i],c[j]]=[c[j],c[i]];} return c; }); }
-  function playNext(autoplay = false) { setQueue(q => { if (!q.length) { setCurrent(null); return q; } const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1; const next = (idx >= 0 && idx < q.length - 1) ? q[idx + 1] : q[0]; setCurrent(next); if (autoplay) autoPlayPending.current = true; setMediaSession({ ...next, artist: next.artist || next.artist_text }, audioRef.current!); return q; }); }
-  function playPrev(autoplay = false) { setQueue(q => { if (!q.length) { setCurrent(null); return q; } const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1; const prev = (idx > 0) ? q[idx - 1] : q[q.length - 1]; setCurrent(prev); if (autoplay) autoPlayPending.current = true; setMediaSession({ ...prev, artist: prev.artist || prev.artist_text }, audioRef.current!); return q; }); }
+  function playNext(autoplay = false) {
+    setQueue(q => {
+      if (!q.length) { setCurrent(null); return q; }
+      const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1;
+      const next = (idx >= 0 && idx < q.length - 1) ? q[idx + 1] : q[0];
+      setCurrent(next);
+      retryRef.current = 0;
+      if (autoplay) autoPlayPending.current = true;
+      setMediaSession({ ...next, artist: next.artist || next.artist_text }, audioRef.current!);
+      return q;
+    });
+  }
+  function playPrev(autoplay = false) {
+    setQueue(q => {
+      if (!q.length) { setCurrent(null); return q; }
+      const idx = current ? q.findIndex(x => String(x.id) === String(current.id)) : -1;
+      const prev = (idx > 0) ? q[idx - 1] : q[q.length - 1];
+      setCurrent(prev);
+      retryRef.current = 0;
+      if (autoplay) autoPlayPending.current = true;
+      setMediaSession({ ...prev, artist: prev.artist || prev.artist_text }, audioRef.current!);
+      return q;
+    });
+  }
   function seek(v: number) { const a = audioRef.current; if (!a) return; a.currentTime = v; setT(v); }
 
-  // media keys
+  // مفاتيح القفل
   useEffect(()=>{ if (typeof window === 'undefined') return; (window as any).__playNext = ()=>playNext(true); (window as any).__playPrev = ()=>playPrev(true); }, [queue, current]);
 
-  // audio events
+  // إرسال تقرير رابط معطوب
+  async function reportBad(reason: string, detail?: string) {
+    try {
+      if (!current) return;
+      await fetch('/api/report-bad-link', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          track_id: current.id,
+          reason,
+          detail: detail || '',
+          retries: retryRef.current || 0,
+        })
+      });
+    } catch {}
+  }
+
+  // أحداث الصوت + مراقب التعليق
   useEffect(() => {
     const a = audioRef.current; if (!a) return;
+
     const onTime = () => {
+      if ((a.currentTime || 0) > 0) lastProgressRef.current = Date.now();
       setT(a.currentTime || 0);
       if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && 'setPositionState' in (navigator as any).mediaSession) {
         (navigator as any).mediaSession.setPositionState({ duration: a.duration || 0, position: a.currentTime || 0, playbackRate: a.playbackRate || 1 });
       }
       if (sleepAt && Date.now() >= sleepAt) { a.pause(); setSleepAt(null); }
     };
-    const onMeta = () => { setDur(a.duration || 0); if (autoPlayPending.current) { a.play().catch(()=>{}); autoPlayPending.current = false; } };
+    const onMeta = () => {
+      setDur(a.duration || 0);
+      lastProgressRef.current = Date.now();
+      retryRef.current = 0;
+      startWatchdog(a);
+      if (autoPlayPending.current) { a.play().catch(()=>{}); autoPlayPending.current = false; }
+    };
     const onEnd = () => {
+      stopWatchdog();
       if (loop === 'one') { a.currentTime = 0; a.play().catch(()=>{}); return; }
       if (loop === 'queue') { playNext(true); return; }
       setT(0);
     };
+    const onError = () => {
+      if (retryRef.current < MAX_RETRIES) {
+        retryRef.current++;
+        try { a.load(); a.play().catch(()=>{}); } catch {}
+      } else {
+        reportBad('media_error', (a.error && `code=${a.error.code}`) || 'unknown');
+        playNext(true);
+      }
+    };
+    const onStalled = () => {
+      // يترك للحارس
+    };
+    const onAbort = () => {
+      if (retryRef.current < MAX_RETRIES) {
+        retryRef.current++;
+        try { a.load(); a.play().catch(()=>{}); } catch {}
+      } else {
+        reportBad('abort_no_data');
+        playNext(true);
+      }
+    };
+
     a.addEventListener('timeupdate', onTime);
     a.addEventListener('loadedmetadata', onMeta);
     a.addEventListener('ended', onEnd);
-    return () => { a.removeEventListener('timeupdate', onTime); a.removeEventListener('loadedmetadata', onMeta); a.removeEventListener('ended', onEnd); };
+    a.addEventListener('error', onError);
+    a.addEventListener('stalled', onStalled);
+    a.addEventListener('abort', onAbort);
+
+    return () => {
+      a.removeEventListener('timeupdate', onTime);
+      a.removeEventListener('loadedmetadata', onMeta);
+      a.removeEventListener('ended', onEnd);
+      a.removeEventListener('error', onError);
+      a.removeEventListener('stalled', onStalled);
+      a.removeEventListener('abort', onAbort);
+      stopWatchdog();
+    };
   }, [current, queue, loop, sleepAt]);
 
-  // حفظ الحالة محليًا — فقط بعد اكتمال الهيدرايشن
+  // حفظ الحالة محليًا — بعد الهيدرايشن
   useEffect(() => { if (!hydrated || typeof window === 'undefined') return; try { localStorage.setItem('nd_queue', JSON.stringify(queue)); } catch {} }, [queue, hydrated]);
   useEffect(() => { if (!hydrated || typeof window === 'undefined') return; try { localStorage.setItem('nd_current', JSON.stringify(current?.id ?? null)); } catch {} }, [current, hydrated]);
   useEffect(() => { if (!hydrated || typeof window === 'undefined') return; try { localStorage.setItem('nd_loop', loop); } catch {} }, [loop, hydrated]);
@@ -327,7 +437,7 @@ export default function Home() {
     alert(`تمت إضافة ${slice.length} إلى قائمة التشغيل`);
   }
 
-  // جلب كلمات عند الطلب
+  // جلب كلمات عند الطلب (للإصدار القادم)
   async function openLyrics(tr: Track) {
     try {
       const r = await fetch(`/api/track?id=${tr.id}`);
@@ -340,7 +450,7 @@ export default function Home() {
     }
   }
 
-  // بانر معلومات الألبوم عندما تكون النتائج محصورة لألبوم واحد
+  // بانر معلومات الألبوم
   const singleAlbum = (() => {
     if (!items.length) return null;
     const uniq = Array.from(new Set(items.map(x => x.album || '')));
@@ -406,30 +516,25 @@ export default function Home() {
                style={{display:'flex',justifyContent:'space-between',alignItems:'stretch',
                        flexWrap:'wrap',gap:8,border:'1px solid #e5e7eb',borderRadius:12,
                        padding:12,background:'#fff'}}>
-            {/* صورة يمين + نص يسار (RTL) */}
             <div className='trackRow'
                  style={{display:'flex',flexDirection:'row-reverse',alignItems:'flex-start',
                          gap:12,minWidth:0,flex:1}}>
               <img loading='lazy' src={tr.cover_url || '/logo.png'} width={54} height={54}
                    style={{objectFit:'cover',borderRadius:10,flex:'0 0 54px'}} alt=''/>
-
               <div className='trackMeta' style={{minWidth:0,flex:1}}>
                 <div className='trackTitle' title={tr.title}
                      style={{color:'#064e3b',fontWeight:700,lineHeight:1.35, display:'flex',alignItems:'center',gap:6}}>
                   <span style={{display:'inline'}}>{tr.title}</span>
-                  {/* الأيقونة تظهر فقط عندما has_lyrics === true */}
                   {tr.has_lyrics === true ? (
                     <button className='lyricsIcon' title='كلمات' onClick={()=>openLyrics(tr)}>🎼</button>
                   ) : null}
                 </div>
 
                 <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',margin:'6px 0'}}>
-                  {/* Chips: القسم الرئيسي/الفرعي */}
                   {tr.class_parent && <span role='button' onClick={()=>setQ(tr.class_parent || '')} className='chip'>{tr.class_parent}</span>}
                   {tr.class_child  && <span role='button' onClick={()=>setQ(tr.class_child  || '')} className='chip'>{tr.class_child}</span>}
                 </div>
 
-                {/* سطر الألبوم/المنشد/السنة */}
                 <div className='trackSub' style={{fontSize:13,color:'#047857',lineHeight:1.35}}>
                   {tr.album ? <span role='button' onClick={()=>setQ(tr.album || '') } className='linkish'>الألبوم: {tr.album}</span> : '—'}
                   {tr.year ? <span> • {tr.year}</span> : null}
@@ -488,7 +593,6 @@ export default function Home() {
       </div>
     </footer>
 
-    {/* قائمة التشغيل (سحب وإفلات) */}
     {open && (
       <div className='sheet' onClick={()=>setOpen(false)}>
         <div className='panel' onClick={(e)=>e.stopPropagation()}>
@@ -540,7 +644,6 @@ export default function Home() {
       </div>
     )}
 
-    {/* لوحة كلمات النشيد */}
     {showLyrics.open && (
       <div className='sheet' onClick={()=>setShowLyrics({open:false})}>
         <div className='panel' onClick={(e)=>e.stopPropagation()}>
