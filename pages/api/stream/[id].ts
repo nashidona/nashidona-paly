@@ -1,15 +1,4 @@
 // pages/api/stream/[id].ts
-async function headOk(url: string, ms = 2500): Promise<boolean> {
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), ms);
-    const r = await fetch(url, { method: 'HEAD', redirect: 'manual', cache: 'no-store', signal: ctrl.signal });
-    clearTimeout(t);
-    return r.ok;
-  } catch { return false; }
-}
-
-
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { Readable } from 'node:stream';
@@ -24,6 +13,24 @@ export const config = {
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
 const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+
+// فحص سريع بالرأس فقط (HEAD) للتأكد من توفر ملف الـCDN
+async function headOk(url: string, ms = 2500): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    const r = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'manual',
+      cache: 'no-store',
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
 
 // ترميز كل مقطع من المسار (للتعامل مع العربية/المسافات)
 function encodePathSegments(u: string): string {
@@ -56,7 +63,7 @@ async function fetchWithHeaders(u: string, req: NextApiRequest) {
   const ua = (req.headers['user-agent'] as string) || 'Mozilla/5.0';
   const headers: Record<string, string> = {
     'User-Agent': ua,
-    // بعض المستضيفين يتطلبون Referer/Origin
+    // بعض المستضيفين يتطلبون Referer/Origin (خاصة MediaFire)
     'Referer': 'https://www.mediafire.com/',
     'Origin': 'https://www.mediafire.com',
     'Accept': 'audio/*;q=0.9,application/octet-stream;q=0.8,*/*;q=0.5',
@@ -81,19 +88,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const { data, error } = await supabase
       .from('tracks')
-      .select('source_url')
+      .select('source_url, cdn_url')
       .eq('id', id)
       .maybeSingle();
 
-    if (error || !data?.source_url) {
+    if (error || !data) {
       return res.status(404).json({ ok: false, error: 'track not found' });
     }
 
-    const originalUrl = String(data.source_url);
-    const encodedUrl  = encodePathSegments(originalUrl);
+    // 1) تفضيل التحويل إلى الـCDN إذا متوفر ويعمل
+    const cdnUrl = (data.cdn_url || '').trim();
+    if (cdnUrl && await headOk(cdnUrl)) {
+      res.setHeader('Cache-Control', 'no-store');
+      res.writeHead(302, { Location: cdnUrl });
+      res.end();
+      return;
+    }
 
-    // ✅ MediaFire: لا نحاول التحميل من السيرفر (غالبًا 403 على IPات Vercel)
-    // نعيد توجيه المتصفح مباشرة؛ المتصفح سيطلب الملف من MediaFire برأسه الخاص IPه الخاص.
+    // إن لم يتوفر CDN صالح، نتابع على المنطق الحالي
+    const originalUrl = (data.source_url || '').trim();
+    if (!originalUrl) {
+      return res.status(404).json({ ok: false, error: 'no url available' });
+    }
+    const encodedUrl = encodePathSegments(originalUrl);
+
+    // 2) MediaFire: إعادة توجيه مباشرة (المتصفح يحمّل بسلاسة)
     if (isMediaFire(originalUrl)) {
       res.setHeader('Cache-Control', 'no-store');
       res.writeHead(302, { Location: encodedUrl });
@@ -101,7 +120,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return;
     }
 
-    // باقي الاستضافات: نحاول ستريم من السيرفر (كما السابق)
+    // 3) باقي الاستضافات: نحاول ستريم من السيرفر (كما السابق)
     const candidates = [originalUrl, encodedUrl];
     let resp: Response | null = null;
     for (const cand of candidates) {
@@ -118,7 +137,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(502).json({ ok: false, error: 'upstream not audio or failed' });
     }
 
-    // مرّر رؤوس مهمة
+    // تمرير رؤوس مهمة
     const passHeaders = [
       'content-type', 'content-length', 'accept-ranges', 'content-range',
       'etag', 'last-modified', 'cache-control', 'content-disposition'
