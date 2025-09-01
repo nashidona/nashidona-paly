@@ -1,4 +1,15 @@
 // pages/api/stream/[id].ts
+async function headOk(url: string, ms = 2500): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    const r = await fetch(url, { method: 'HEAD', redirect: 'manual', cache: 'no-store', signal: ctrl.signal });
+    clearTimeout(t);
+    return r.ok;
+  } catch { return false; }
+}
+
+
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { Readable } from 'node:stream';
