@@ -113,7 +113,7 @@ export default function SharePage({ tr, site }: Props) {
             </div>
             <div style={{marginTop:10, display:'flex', gap:8, flexWrap:'wrap'}}>
               <a href={`/api/stream/${tr.id}`} className="btn">▶ تشغيل</a>
-              <a href={`https://media.nashidona.net/file/nashidona/tracks/${tr.id}.mp3?download`} className="btn" rel="noopener" target="_blank">⬇ تنزيل</a>
+              <a href={`/api/download/${tr.id}`} className="btn">⬇ تنزيل</a>
               <button className="btn" onClick={() => {
                 if (navigator.share) navigator.share({ title: tr.title, text: 'نشيدُنا', url }).catch(()=>{});
                 else { navigator.clipboard?.writeText(url); alert('تم نسخ الرابط'); }
