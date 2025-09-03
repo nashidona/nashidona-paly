@@ -114,14 +114,15 @@ const baseName = [tr.title, tr.artist].filter(Boolean).join(' - ');
               {tr.year ? <><span> • </span><span>{tr.year}</span></> : null}
             </div>
             <div style={{marginTop:10, display:'flex', gap:8, flexWrap:'wrap'}}>
-             <a
+            const baseName = [tr.title, tr.artist].filter(Boolean).join(' - ');
+<a
   href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`}
   className="btn"
-  rel="noopener"
-  target="_blank"
+  download
 >
   ⬇ تنزيل
 </a>
+
               <button className="btn" onClick={() => {
                 if (navigator.share) navigator.share({ title: tr.title, text: 'نشيدُنا', url }).catch(()=>{});
                 else { navigator.clipboard?.writeText(url); alert('تم نسخ الرابط'); }
