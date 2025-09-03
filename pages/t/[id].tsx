@@ -113,7 +113,14 @@ export default function SharePage({ tr, site }: Props) {
             </div>
             <div style={{marginTop:10, display:'flex', gap:8, flexWrap:'wrap'}}>
               <a href={`/api/stream/${tr.id}`} className="btn">▶ تشغيل</a>
-              <a href={`/api/download/${tr.id}`} className="btn">⬇ تنزيل</a>
+             const baseName = [tr.title, tr.artist].filter(Boolean).join(' - '); // اسم عربي جميل
+<a
+  href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`}
+  className="btn"
+>
+  ⬇ تنزيل
+</a>
+
               <button className="btn" onClick={() => {
                 if (navigator.share) navigator.share({ title: tr.title, text: 'نشيدُنا', url }).catch(()=>{});
                 else { navigator.clipboard?.writeText(url); alert('تم نسخ الرابط'); }
