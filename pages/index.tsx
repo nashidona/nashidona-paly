@@ -261,7 +261,7 @@ export default function Home() {
       }
 
       const rawLoop = localStorage.getItem('nd_loop') as LoopMode | null;
-      if (rawLoop === 'none' || rawLoop === 'queue' || rawLoop === 'one') setLoop(rawLoop);
+      if (rawLoop === 'none' || 'queue' || 'one') setLoop(rawLoop as LoopMode);
       const rawSleep = localStorage.getItem('nd_sleep');
       if (rawSleep) setSleepAt(JSON.parse(rawSleep));
     } catch {}
@@ -461,6 +461,7 @@ export default function Home() {
     const uniq = Array.from(new Set(items.map(x => x.album || '')));
     if (uniq.length === 1 && uniq[0]) {
       const sample = items[0];
+      // fallback: شعار الموقع
       return { title: uniq[0], year: sample.year || '', cover: sample.cover_url || '/logo.png' };
     }
     return null;
@@ -530,7 +531,28 @@ export default function Home() {
       </div>
       {singleAlbum && (
         <div style={{maxWidth:960,margin:'14px auto 0',padding:'10px 12px',border:'1px solid #e5e7eb',borderRadius:12,background:'#fff',display:'flex',gap:10,alignItems:'center'}}>
-          <img src={singleAlbum.cover} width={48} height={48} style={{borderRadius:10,objectFit:'cover'}} alt=''/>
+          {/* ✅ غلاف الألبوم مع fallback للشعار + ضبط مقاس الشعار */}
+          <img
+            src={singleAlbum.cover}
+            width={48}
+            height={48}
+            style={{
+              borderRadius: 10,
+              objectFit: singleAlbum.cover === '/logo.png' ? 'contain' : 'cover',
+              background: singleAlbum.cover === '/logo.png' ? '#f3f4f6' as any : undefined,
+              padding: singleAlbum.cover === '/logo.png' ? 6 as any : undefined
+            }}
+            alt=''
+            onError={(e) => {
+              const t = e.currentTarget as HTMLImageElement;
+              if (t.src.endsWith('/logo.png')) return;
+              t.onerror = null;
+              t.src = '/logo.png';
+              t.style.objectFit = 'contain';
+              t.style.background = '#f3f4f6';
+              t.style.padding = '6px';
+            }}
+          />
           <div style={{lineHeight:1.4}}>
             <div style={{fontWeight:700,color:'#064e3b'}}>ألبوم: {singleAlbum.title}</div>
             <div style={{fontSize:12,color:'#047857'}}>{singleAlbum.year ? `السنة: ${singleAlbum.year}` : ''}</div>
@@ -553,8 +575,30 @@ export default function Home() {
             <div className='trackRow'
                  style={{display:'flex',flexDirection:'row-reverse',alignItems:'flex-start',
                          gap:12,minWidth:0,flex:1}}>
-              <img loading='lazy' src={tr.cover_url || '/logo.png'} width={54} height={54}
-                   style={{objectFit:'cover',borderRadius:10,flex:'0 0 54px'}} alt=''/>
+              {/* ✅ غلاف المسار مع fallback للشعار + ضبط مقاس الشعار */}
+              <img
+                loading='lazy'
+                src={tr.cover_url || '/logo.png'}
+                width={54}
+                height={54}
+                style={{
+                  objectFit: tr.cover_url ? 'cover' : 'contain',
+                  borderRadius: 10,
+                  flex: '0 0 54px',
+                  background: tr.cover_url ? undefined : '#f3f4f6',
+                  padding: tr.cover_url ? undefined : '6px'
+                }}
+                alt=''
+                onError={(e) => {
+                  const t = e.currentTarget as HTMLImageElement;
+                  if (t.src.endsWith('/logo.png')) return;
+                  t.onerror = null;
+                  t.src = '/logo.png';
+                  t.style.objectFit = 'contain';
+                  t.style.background = '#f3f4f6';
+                  t.style.padding = '6px';
+                }}
+              />
               <div className='trackMeta' style={{minWidth:0,flex:1}}>
                 <div className='trackTitle' title={tr.title}
                      style={{color:'#064e3b',fontWeight:700,lineHeight:1.35, display:'flex',alignItems:'center',gap:6}}>
