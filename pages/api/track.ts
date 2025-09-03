@@ -2,7 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
-// نكوّن العميل بطريقة آمنة: Service Role إن وُجد وإلا Anon
+// يكوّن العميل بأمان: Service Role إن وُجد وإلا Anon
 function getSupabase() {
   const url =
     (process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined) ||
@@ -30,20 +30,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const supabase = getSupabase();
-    // نقرأ الصف الأساسي أولاً (سلوك قديم + أساس للنمط الموسع)
+
+    // ⚠️ لا نطلب cover_url من tracks لأنه غير موجود
     const { data: tr, error } = await supabase
       .from('tracks')
-      .select('id, title, year, lyrics, cover_url, album_id, artist_id')
+      .select('id,title,year,lyrics,album_id,artist_id')
       .eq('id', idNum)
       .maybeSingle();
 
     if (error) return res.status(500).json({ error: error.message });
     if (!tr) return res.status(404).json({ error: 'not found' });
 
-    // السلوك القديم: نرجّع فقط lyrics
+    // السلوك القديم (لوحة الكلمات): نعيد فقط lyrics
     const basic = { lyrics: (tr.lyrics ?? '') as string };
 
-    // إن لم يُطلب وضع موسّع -> أعد القديم كما هو
+    // وضع موسّع عند طلب full=1 (لصفحة المشاركة /t/[id])
     const wantFull =
       String(req.query.full || '').toLowerCase() === '1' ||
       String(req.query.full || '').toLowerCase() === 'true';
@@ -52,13 +53,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json(basic);
     }
 
-    // وضع موسّع (لصفحة المشاركة /t/[id])
+    // نجلب بيانات الألبوم (الغلاف/العنوان/السنة) إن وُجد
     let albumTitle: string | null = null;
-    let albumYear: string | null = null;
+    let albumYear: string | null = tr.year ?? null;
     let albumCover: string | null = null;
-    let artistName: string | null = null;
 
-    // نجلب الألبوم/المنشد إذا كان لديهم مفاتيح
     if (tr.album_id) {
       const { data: alb } = await supabase
         .from('albums')
@@ -67,12 +66,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .maybeSingle();
       albumTitle = alb?.title ?? null;
       albumYear = (alb?.year as string | null) ?? (tr.year as string | null) ?? null;
-      albumCover = alb?.cover_url ?? tr.cover_url ?? null;
-    } else {
-      albumYear = (tr.year as string | null) ?? null;
-      albumCover = tr.cover_url ?? null;
+      albumCover = alb?.cover_url ?? null;
     }
 
+    // نجلب اسم المنشد إن وُجد ارتباط
+    let artistName: string | null = null;
     if (tr.artist_id) {
       const { data: ar } = await supabase
         .from('artists')
@@ -86,18 +84,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       id: tr.id,
       title: tr.title || `نشيد رقم ${idNum}`,
       year: albumYear,
-      cover_url: albumCover,
+      cover_url: albumCover, // قد تكون null — العميل يتعامل معها
       album: albumTitle,
       artist: artistName,
       lyrics: (tr.lyrics ?? '') as string,
     };
 
-    // نُبقي حقل lyrics لأجل التوافق القديم + نعطي item كامل
     return res.status(200).json({ ...basic, item, ok: true });
   } catch (e: any) {
-    // إن كان الخطأ من البيئة غيّر الرسالة لتوضيح السبب
-    const msg = e?.message || 'server error';
-    const status = msg.includes('Supabase env missing') ? 500 : 500;
-    return res.status(status).json({ error: msg });
+    return res.status(500).json({ error: e?.message || 'server error' });
   }
 }
