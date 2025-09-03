@@ -45,6 +45,8 @@ export default function SharePage({ tr, site }: Props) {
   if (!tr) return null;
 
   const url = `${site}/t/${tr.id}`;
+const baseName = [tr.title, tr.artist].filter(Boolean).join(' - ');
+
 
   const titleParts = [tr.title];
   if (tr.artist) titleParts.push(tr.artist);
@@ -112,15 +114,14 @@ export default function SharePage({ tr, site }: Props) {
               {tr.year ? <><span> • </span><span>{tr.year}</span></> : null}
             </div>
             <div style={{marginTop:10, display:'flex', gap:8, flexWrap:'wrap'}}>
-              <a href={`/api/stream/${tr.id}`} className="btn">▶ تشغيل</a>
-             const baseName = [tr.title, tr.artist].filter(Boolean).join(' - '); // اسم عربي جميل
-<a
+             <a
   href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`}
   className="btn"
+  rel="noopener"
+  target="_blank"
 >
   ⬇ تنزيل
 </a>
-
               <button className="btn" onClick={() => {
                 if (navigator.share) navigator.share({ title: tr.title, text: 'نشيدُنا', url }).catch(()=>{});
                 else { navigator.clipboard?.writeText(url); alert('تم نسخ الرابط'); }
