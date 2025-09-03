@@ -18,18 +18,28 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const id = String(ctx.params?.id || '').trim();
   if (!/^\d+$/.test(id)) return { notFound: true };
 
-  // نبني base URL صالح للبيئة (لوكال/فيرسل)
-  const site =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+  // 👈 استخدم هوست الطلب (ينفع مع Cloudflare/الدومين المخصص)
+  const proto =
+    (ctx.req.headers['x-forwarded-proto'] as string) ||
+    (process.env.NODE_ENV === 'development' ? 'http' : 'https');
+  const host = ctx.req.headers.host || '';
+  const site = `${proto}://${host}`;
 
-  const r = await fetch(`${site}/api/track?id=${id}&full=1`);
-  if (!r.ok) return { notFound: true };
-  const js = await r.json();
-  const tr: Track | null = js?.item ?? null;
-
-  return { props: { tr, site } };
+  try {
+    const r = await fetch(`${site}/api/track?id=${id}&full=1`, {
+      headers: { accept: 'application/json' },
+      cache: 'no-store',
+    });
+    if (!r.ok) return { notFound: true };
+    const js = await r.json();
+    const tr: Track | null = js?.item ?? null;
+    if (!tr) return { notFound: true };
+    return { props: { tr, site } };
+  } catch {
+    return { notFound: true };
+  }
 };
+
 
 export default function SharePage({ tr, site }: Props) {
   if (!tr) return null;
