@@ -114,7 +114,6 @@ const baseName = [tr.title, tr.artist].filter(Boolean).join(' - ');
               {tr.year ? <><span> • </span><span>{tr.year}</span></> : null}
             </div>
             <div style={{marginTop:10, display:'flex', gap:8, flexWrap:'wrap'}}>
-            const baseName = [tr.title, tr.artist].filter(Boolean).join(' - ');
 <a
   href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`}
   className="btn"
