@@ -10,8 +10,9 @@ type Track = {
   class_child?: string;
   cover_url?: string;
   year?: string;
-  has_lyrics?: boolean;
+  has_lyrics?: boolean; // ← لإظهار أيقونة الكلمات فقط عند التوفر
 };
+
 type LoopMode = 'none'|'queue'|'one';
 
 function fmt(sec: number) { if (!isFinite(sec) || sec < 0) return '0:00'; const m = Math.floor(sec/60); const s = Math.floor(sec%60); return `${m}:${s.toString().padStart(2,'0')}`; }
@@ -485,7 +486,7 @@ export default function Home() {
     alert(`تمت إضافة ${slice.length} إلى قائمة التشغيل`);
   }
 
-  // جلب كلمات عند الطلب (إصدار لاحق)
+  // جلب كلمات عند الطلب
   async function openLyrics(tr: Track) {
     try {
       const r = await fetch(`/api/track?id=${tr.id}`);
@@ -504,7 +505,6 @@ export default function Home() {
     const uniq = Array.from(new Set(items.map(x => x.album || '')));
     if (uniq.length === 1 && uniq[0]) {
       const sample = items[0];
-      // fallback: شعار الموقع
       return { title: uniq[0], year: sample.year || '', cover: sample.cover_url || '/logo.png' };
     }
     return null;
@@ -574,7 +574,6 @@ export default function Home() {
       </div>
       {singleAlbum && (
         <div style={{maxWidth:960,margin:'14px auto 0',padding:'10px 12px',border:'1px solid #e5e7eb',borderRadius:12,background:'#fff',display:'flex',gap:10,alignItems:'center'}}>
-          {/* ✅ غلاف الألبوم مع fallback للشعار + ضبط مقاس الشعار */}
           <img
             src={singleAlbum.cover}
             width={48}
@@ -610,7 +609,9 @@ export default function Home() {
 
     <main style={{maxWidth:960,margin:'0 auto',padding:'0 16px calc(var(--footerH,160px) + var(--kb,0)) 16px'}}>
       <div style={{display:'grid',gap:12}}>
-        {items.map(tr=>(
+        {items.map(tr=>{
+          const baseName = [tr.title, tr.artist || tr.artist_text].filter(Boolean).join(' - ');
+          return (
           <div key={String(tr.id)} className='trackCard'
                style={{display:'flex',justifyContent:'space-between',alignItems:'stretch',
                        flexWrap:'wrap',gap:8,border:'1px solid #e5e7eb',borderRadius:12,
@@ -618,7 +619,6 @@ export default function Home() {
             <div className='trackRow'
                  style={{display:'flex',flexDirection:'row-reverse',alignItems:'flex-start',
                          gap:12,minWidth:0,flex:1}}>
-              {/* ✅ غلاف المسار مع fallback للشعار + ضبط مقاس الشعار */}
               <img
                 loading='lazy'
                 src={tr.cover_url || '/logo.png'}
@@ -646,7 +646,8 @@ export default function Home() {
                 <div className='trackTitle' title={tr.title}
                      style={{color:'#064e3b',fontWeight:700,lineHeight:1.35, display:'flex',alignItems:'center',gap:6}}>
                   <span style={{display:'inline'}}>{tr.title}</span>
-                  {tr.has_lyrics === true ? (
+                  {/* أيقونة كلمات فقط عند التوفر */}
+                  {tr.has_lyrics ? (
                     <button className='lyricsIcon' title='كلمات' onClick={()=>openLyrics(tr)}>🎼</button>
                   ) : null}
                 </div>
@@ -667,12 +668,17 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            <div className='actions' style={{display:'flex',gap:8}}>
+            <div className='actions' style={{display:'flex',gap:8, alignItems:'center'}}>
+              {/* مشاركة */}
+              <a href={`/t/${tr.id}`} className='btn sm' target='_blank' rel='noopener' title='مشاركة'>🔗</a>
+              {/* تنزيل باسم عربي صحيح عبر /api/d */}
+              <a href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`} className='btn sm' download title='تنزيل'>⬇</a>
+              {/* قائمة + تشغيل */}
               <button className='btn-queue' onClick={()=>addToQueue(tr)} style={{padding:'8px 10px',border:'1px solid #d1fae5',borderRadius:8}}>+ قائمة</button>
               <button className='btn-play' onClick={()=>{playNow(tr);}} style={{padding:'8px 10px',background:'#059669',color:'#fff',borderRadius:8}}>▶ تشغيل</button>
             </div>
           </div>
-        ))}
+        );})}
       </div>
       <div ref={sentinelRef} style={{height:1}}/>
     </main>
@@ -781,42 +787,35 @@ export default function Home() {
 
     {/* ✅ زر تشغيل واحد إذا منِع التشغيل التلقائي (موبايل) */}
     {needsTap && (
-  <div className='sheet' onClick={()=>{ /* منع الإغلاق عند النقر على الخلفية */ }} style={{background:'rgba(0,0,0,0.55)'}}>
-    <div className='panel' style={{textAlign:'center'}}>
-      <div className='handle'/>
-
-      {/* 👇 عنوان الديناميكي: اسم النشيد */}
-      <div style={{fontWeight:700, marginBottom:4}}>
-        {incomingTrack?.title || current?.title || 'أنشودة'}
-      </div>
-
-      {/* (اختياري) عرض اسم المنشد إن وجد */}
-      {(incomingTrack?.artist || incomingTrack?.artist_text || current?.artist || current?.artist_text) && (
-        <div style={{color:'#374151', fontSize:13, marginBottom:10}}>
-          {incomingTrack?.artist || incomingTrack?.artist_text || current?.artist || current?.artist_text}
+      <div className='sheet' onClick={()=>{ }} style={{background:'rgba(0,0,0,0.55)'}}>
+        <div className='panel' style={{textAlign:'center'}}>
+          <div className='handle'/>
+          <div style={{fontWeight:700, marginBottom:4}}>
+            {incomingTrack?.title || current?.title || 'أنشودة'}
+          </div>
+          {(incomingTrack?.artist || incomingTrack?.artist_text || current?.artist || current?.artist_text) && (
+            <div style={{color:'#374151', fontSize:13, marginBottom:10}}>
+              {incomingTrack?.artist || incomingTrack?.artist_text || current?.artist || current?.artist_text}
+            </div>
+          )}
+          <div style={{color:'#374151', fontSize:14, marginBottom:12}}>اضغط الزر للتشغيل</div>
+          <button
+            onClick={() => {
+              if (incomingTrack) playNow(incomingTrack);
+              const a = audioRef.current as HTMLAudioElement | null;
+              a?.play().catch(()=>{});
+              setNeedsTap(false);
+            }}
+            style={{padding:'12px 14px', background:'#059669', color:'#fff', borderRadius:10, border:'none'}}
+          >
+            ▶ اضغط للتشغيل
+          </button>
         </div>
-      )}
+      </div>
+    )}
 
-      <div style={{color:'#374151', fontSize:14, marginBottom:12}}>اضغط الزر للتشغيل</div>
-
-      <button
-        onClick={() => {
-          if (incomingTrack) playNow(incomingTrack);
-          const a = audioRef.current as HTMLAudioElement | null;
-          a?.play().catch(()=>{});
-          setNeedsTap(false);
-        }}
-        style={{padding:'12px 14px', background:'#059669', color:'#fff', borderRadius:10, border:'none'}}
-      >
-        ▶ اضغط للتشغيل
-      </button>
-    </div>
-  </div>
-)}
-    {/* زر طافٍ للملاحظات على الجوال */}
     <button className="fbFab" onClick={()=>setFbOpen(true)} title="أرسل ملاحظة">💬</button>
 
-    {/* نافذة الملاحظات */}
     {fbOpen && (
       <div className='sheet' onClick={()=>setFbOpen(false)}>
         <div className='panel' onClick={(e)=>e.stopPropagation()}>
@@ -844,9 +843,7 @@ export default function Home() {
       img,video,canvas{ max-width:100%; height:auto; display:block }
       footer{ left:0; right:0; transform:translateZ(0) }
 
-      .chip{
-        font-size:12px; padding:4px 8px; border:1px solid #d1fae5; border-radius:999px; background:#f0fdf4; color:#065f46; cursor:pointer;
-      }
+      .chip{ font-size:12px; padding:4px 8px; border:1px solid #d1fae5; border-radius:999px; background:#f0fdf4; color:#065f46; cursor:pointer; }
       .chip:hover{ background:#dcfce7 }
       .linkish{ cursor:pointer; text-decoration:underline; text-underline-offset:3px }
 
@@ -857,25 +854,19 @@ export default function Home() {
       .lyricsIcon { border:1px solid #e5e7eb; border-radius:6px; padding:2px 6px; font-size:12px; background:#fff; cursor:pointer; }
 
       .fbBtn { padding:4px 8px; border:1px solid #e5e7eb; background:#fff; border-radius:8px; font-size:12px; }
-      .fbFab {
-        position: fixed; left: 12px; bottom: calc(var(--kb,0) + var(--footerH,160px) + 12px);
-        z-index: 50; border:1px solid #e5e7eb; background:#fff; width:42px; height:42px; border-radius:999px;
-        display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.12);
-      }
+      .fbFab { position: fixed; left: 12px; bottom: calc(var(--kb,0) + var(--footerH,160px) + 12px); z-index: 50; border:1px solid #e5e7eb; background:#fff; width:42px; height:42px; border-radius:999px; display:flex; align-items:center; justifyContent:center; box-shadow:0 4px 12px rgba(0,0,0,.12); }
+
+      .btn.sm { padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 8px; background:#fff; }
+      .btn.sm:hover { background:#f8fafc; }
 
       @media (max-width: 520px) {
         .trackCard { flex-direction: column; align-items: stretch; width:100%; }
-        .actions { width:100%; display:grid !important; grid-template-columns: 1fr auto; gap:8px; }
-        .btn-play { width:100%; }
+        .actions { width:100%; display:grid !important; grid-template-columns: repeat(4, auto); gap:8px; align-items:center; justify-content:flex-start; }
+        .btn-play { width:100%; grid-column: 1 / -1; }
         header .stats { display:none; }
       }
       .sheet{ position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.25); }
-      .sheet .panel{
-        position: absolute; left:0; right:0; bottom:0;
-        background:#fff; border-top-left-radius:16px; border-top-right-radius:16px;
-        padding: 10px; box-shadow: 0 -10px 30px rgba(0,0,0,.15);
-        padding-bottom: calc(10px + env(safe-area-inset-bottom));
-      }
+      .sheet .panel{ position: absolute; left:0; right:0; bottom:0; background:#fff; border-top-left-radius:16px; border-top-right-radius:16px; padding: 10px; box-shadow:0 -10px 30px rgba(0,0,0,.15); padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
       .sheet .handle{ width:44px; height:5px; background:#e5e7eb; border-radius:999px; margin:6px auto 10px; }
     `}</style>
   </div>);
