@@ -712,6 +712,47 @@ export default function Home() {
       setFbBusy(false);
     }
   }
+  // 🔔 تشغيل فوري عند فتح رابط المشاركة /?play=ID
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const u = new URL(window.location.href);
+      const pid = u.searchParams.get('play');
+      if (!pid || !/^\d+$/.test(pid)) return;
+      (async () => {
+        try {
+          const r = await fetch('/api/track?id=' + pid + '&full=1', { headers: { accept: 'application/json' }, cache: 'no-store' });
+          const js = await r.json();
+          const tr = js?.item;
+          if (!tr || !tr.id || !tr.title) return;
+          const t: Track = {
+            id: tr.id,
+            title: tr.title,
+            album: tr.album || null,
+            artist: tr.artist || tr.artist_text || null,
+            artist_text: tr.artist || tr.artist_text || null,
+            year: tr.year || null,
+            cover_url: tr.cover_url || null,
+            has_lyrics: !!(tr.lyrics && String(tr.lyrics).trim()),
+          };
+          playNow(t);
+          const a = audioRef.current;
+          if (a) {
+            a.load();
+            try { await a.play(); }
+            catch { setIncomingTrack(t); setNeedsTap(true); }
+          } else {
+            setIncomingTrack(t);
+            setNeedsTap(true);
+          }
+          // تنظيف الرابط من ?play بعد المعالجة
+          u.searchParams.delete('play');
+          window.history.replaceState({}, '', u.toString());
+        } catch {}
+      })();
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div style={{ fontFamily: 'system-ui,-apple-system,Segoe UI,Tahoma', background: '#f8fafc', minHeight: '100vh' }}>
@@ -888,7 +929,7 @@ export default function Home() {
                         const url = `${origin}/t/${tr.id}`;
                         const title = tr.title + (tr.artist || tr.artist_text ? ` — ${tr.artist || tr.artist_text}` : '');
                         if (navigator.share) {
-                          navigator.share({ title, text: 'نشيدُنا', url }).catch(() => {});
+                          navigator.share({ url }).catch(() => {});
                         } else {
                           navigator.clipboard?.writeText(url);
                           alert('تم نسخ رابط المشاركة');
