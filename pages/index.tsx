@@ -1,10 +1,44 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-type Track = { id: number|string; title: string; album?: string; artist?: string; artist_text?: string; class_parent?: string; class_child?: string; cover_url?: string; year?: string; has_lyrics?: boolean; // ← لإظهار أيقونة الكلمات فقط عند التوفر };
+type Track = {
+  id: number | string;
+  title: string;
+  album?: string;
+  artist?: string;
+  artist_text?: string;
+  class_parent?: string;
+  class_child?: string;
+  cover_url?: string;
+  year?: string;
+  has_lyrics?: boolean; // لإظهار أيقونة الكلمات فقط عند التوفر
+};
 
-type LoopMode = 'none'|'queue'|'one';
+type LoopMode = 'none' | 'queue' | 'one';
 
-function fmt(sec: number) { if (!isFinite(sec) || sec < 0) return '0:00'; const m = Math.floor(sec/60); const s = Math.floor(sec%60); return ${m}:${s.toString().padStart(2,'0')}; } function useDebounced<T>(value: T, delay = 300) { const [v, setV] = useState(value); useEffect(() => { const t = setTimeout(() => setV(value), delay); return () => clearTimeout(t); }, [value, delay]); return v; } function shuffle<T>(arr: T[]) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+function fmt(sec: number) {
+  if (!isFinite(sec) || sec < 0) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function useDebounced<T>(value: T, delay = 300) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return v;
+}
+
+function shuffle<T>(arr: T[]) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 function setMediaSession(tr: {id:any; title:string; artist?:string; album?:string; cover_url?:string}, a?: HTMLAudioElement) { if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return; const cover = tr.cover_url || '/logo.png'; const art = [ { src: cover, sizes: '96x96',   type: 'image/png' }, { src: cover, sizes: '192x192', type: 'image/png' }, { src: cover, sizes: '512x512', type: 'image/png' }, ]; // @ts-ignore navigator.mediaSession.metadata = new MediaMetadata({ title: tr.title, artist: tr.artist || '', album: tr.album || '', artwork: art as any }); const play = () => a?.play().catch(()=>{}); const pause = () => a?.pause(); // @ts-ignore navigator.mediaSession.setActionHandler('play', play); // @ts-ignore navigator.mediaSession.setActionHandler('pause', pause); // @ts-ignore navigator.mediaSession.setActionHandler('previoustrack', () => (window as any).__playPrev?.()); // @ts-ignore navigator.mediaSession.setActionHandler('nexttrack', () => (window as any).__playNext?.()); // @ts-ignore navigator.mediaSession.setActionHandler('seekbackward', (d:any)=>{ if(!a) return; a.currentTime = Math.max(0, a.currentTime - (d?.seekOffset||10));}); // @ts-ignore navigator.mediaSession.setActionHandler('seekforward', (d:any)=>{ if(!a) return; a.currentTime = Math.min(a.duration||0, a.currentTime + (d?.seekOffset||10));}); // @ts-ignore navigator.mediaSession.setActionHandler('seekto', (d:any)=>{ if(!a || d.fastSeek) return; a.currentTime = d.seekTime || 0;}); // @ts-ignore if (a && ('setPositionState' in (navigator as any).mediaSession)) { // @ts-ignore (navigator as any).mediaSession.setPositionState({ duration: a.duration || 0, position: a.currentTime || 0, playbackRate: a.playbackRate || 1 }); } }
 
