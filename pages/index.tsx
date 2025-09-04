@@ -83,6 +83,10 @@ export default function Home() {
   const [sleepAt, setSleepAt] = useState<number|null>(null);
   const [hydrated, setHydrated] = useState(false); // لا نحفظ قبل القراءة
 
+  // ✅ دعم التشغيل عبر ?play=ID
+  const [needsTap, setNeedsTap] = useState(false);
+  const [incomingTrack, setIncomingTrack] = useState<Track | null>(null);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoPlayPending = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -184,6 +188,45 @@ export default function Home() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dq]);
+
+  // ✅ تشغيل تلقائي عند القدوم بـ ?play=ID
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const pid = params.get('play');
+      if (pid && /^\d+$/.test(pid)) {
+        fetch(`/api/track?id=${pid}&full=1`)
+          .then(r => r.ok ? r.json() : Promise.reject())
+          .then(js => {
+            const it = js?.item;
+            if (!it) return;
+            const tr: Track = {
+              id: it.id,
+              title: it.title,
+              album: it.album || undefined,
+              artist: it.artist || it.artist_text || undefined,
+              artist_text: it.artist_text || undefined,
+              class_parent: it.class_parent || undefined,
+              class_child: it.class_child || undefined,
+              cover_url: it.cover_url || undefined,
+              year: it.year || undefined,
+              has_lyrics: !!(js?.lyrics && String(js.lyrics).trim())
+            };
+            setIncomingTrack(tr);
+            playNow(tr);
+            const a = audioRef.current as HTMLAudioElement | null;
+            if (a) {
+              a.play().catch(() => setNeedsTap(true));
+            } else {
+              setNeedsTap(true);
+            }
+          })
+          .catch(()=>{});
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // تمرير لا نهائي
   useEffect(() => {
@@ -361,7 +404,7 @@ export default function Home() {
         playNext(true);
       }
     };
-    const onStalled = () => { /* يHandled by watchdog */ };
+    const onStalled = () => { /* handled by watchdog */ };
     const onAbort = () => {
       if (retryRef.current < MAX_RETRIES) {
         retryRef.current++;
@@ -732,6 +775,28 @@ export default function Home() {
           <div style={{maxHeight:'56vh',overflowY:'auto',whiteSpace:'pre-wrap',lineHeight:1.7}}>
             {showLyrics.text || '—'}
           </div>
+        </div>
+      </div>
+    )}
+
+    {/* ✅ زر تشغيل واحد إذا منِع التشغيل التلقائي (موبايل) */}
+    {needsTap && (
+      <div className='sheet' onClick={()=>{ /* منع الإغلاق عند النقر على الخلفية */ }} style={{background:'rgba(0,0,0,0.55)'}}>
+        <div className='panel' style={{textAlign:'center'}}>
+          <div className='handle'/>
+          <div style={{fontWeight:700, marginBottom:8}}>جاهزون للتشغيل</div>
+          <div style={{color:'#374151', fontSize:14, marginBottom:12}}>اضغط الزر لبدء تشغيل الأنشودة</div>
+          <button
+            onClick={() => {
+              if (incomingTrack) playNow(incomingTrack);
+              const a = audioRef.current as HTMLAudioElement | null;
+              a?.play().catch(()=>{});
+              setNeedsTap(false);
+            }}
+            style={{padding:'12px 14px', background:'#059669', color:'#fff', borderRadius:10, border:'none'}}
+          >
+            ▶ اضغط للتشغيل
+          </button>
         </div>
       </div>
     )}
