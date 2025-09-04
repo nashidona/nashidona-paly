@@ -1,11 +1,10 @@
 // pages/t/[id].tsx
 import Head from 'next/head'
 import type { GetServerSideProps } from 'next'
-import { createClient } from '@supabase/supabase-js'
 
-// صفحة مشاركة أنشودة مع OG/Twitter للبوتات + تحويل للبشر إلى /?play=ID
+// صفحة مشاركة أنشودة مع وسم OG/Twitter جاهز للمنصات الاجتماعية
+// URL: https://play.nashidona.net/t/[id]
 
-// Types
 interface Track {
   id: number
   title: string
@@ -24,45 +23,20 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     const id = String(ctx.params?.id || '').trim()
     if (!id || !/^[0-9]+$/.test(id)) return { notFound: true }
 
-    // 👇 تمييز البوتات عن البشر (لأجل التحويل)
-    const ua = String(ctx.req.headers['user-agent'] || '')
-    const isBot = /(bot|facebookexternalhit|twitterbot|whatsapp|telegram|google|bing|slurp|duckduck|duckduckgo|linkedinbot|embed|preview|vkshare)/i.test(ua)
-    const noRedir = 'noredir' in (ctx.query || {})
+    // ابنِ الـbase URL من نفس الطلب (آمن مع Cloudflare/Vercel)
+    const proto = (ctx.req.headers['x-forwarded-proto'] as string) || (process.env.NODE_ENV === 'development' ? 'http' : 'https')
+    const host  = ctx.req.headers.host || ''
+    const site  = `${proto}://${host}`
 
-    // Supabase (كما في نسختك)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string
-    const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
-
-    // نجلب أقل قدر ممكن من الحقول (نفس أسلوبك)
-    const { data, error } = await supabase
-      .from('tracks')
-      .select('id,title,album:albums(title,year,cover_url),artist,artist_text,year,cover_url,lyrics')
-      .eq('id', id)
-      .maybeSingle()
-
-    if (error || !data) return { notFound: true }
-
-    // نبسّط الحقول (album قد تكون علاقة)
-    const albumTitle = (data as any).album?.title ?? null
-    const albumYear  = (data as any).album?.year ?? data.year ?? null
-    const albumCover = (data as any).album?.cover_url ?? data.cover_url ?? null
-
-    const tr: Track = {
-      id: Number(id),
-      title: data.title || `نشيد رقم ${id}`,
-      album: albumTitle,
-      year: albumYear,
-      artist: data.artist || null,
-      artist_text: data.artist_text || null,
-      cover_url: albumCover,
-      lyrics: data.lyrics || null,
-    }
-
-    // 👇 البشر → تحويل للتشغيل على الرئيسية (نبقي البوتات على صفحة OG)
-    if (!isBot && !noRedir) {
-      return { redirect: { destination: `/?play=${id}`, permanent: false } }
-    }
+    // 👇 بدلاً من Supabase مباشرة، اعتمد على API الداخلي الجاهز
+    const r = await fetch(`${site}/api/track?id=${id}&full=1`, {
+      headers: { accept: 'application/json' },
+      cache: 'no-store',
+    })
+    if (!r.ok) return { notFound: true }
+    const js = await r.json()
+    const tr: Track | null = js?.item ?? null
+    if (!tr) return { notFound: true }
 
     return { props: { tr } }
   } catch {
@@ -73,7 +47,6 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 export default function SharePage({ tr }: Props) {
   if (!tr) return null
 
-  // إبقِ العنوان الأساسي كما تحب
   const site = 'https://play.nashidona.net'
   const url  = `${site}/t/${tr.id}`
 
@@ -94,7 +67,7 @@ export default function SharePage({ tr }: Props) {
   // صورة المشاركة: غلاف الألبوم أو الشعار
   const image = tr.cover_url && tr.cover_url.trim() ? tr.cover_url : `${site}/logo.png`
 
-  // اسم ملف التنزيل بالعربي
+  // اسم ملف مقترح عند التحميل (لو استُخدم مسار /api/d)
   const baseName = [tr.title, who].filter(Boolean).join(' - ')
 
   return (
@@ -131,7 +104,7 @@ export default function SharePage({ tr }: Props) {
         }) }} />
       </Head>
 
-      {/* محتوى للبوتات أو لو فتحت بـ ?noredir=1 */}
+      {/* محتوى للبوتات / وللتجربة اليدوية */}
       <main style={{maxWidth: 720, margin: '24px auto', padding: '0 16px', fontFamily: 'system-ui, -apple-system, Segoe UI, Tahoma'}}>
         <div style={{display:'flex', gap:16, alignItems:'center'}}>
           <img src={image} width={96} height={96}
@@ -146,8 +119,8 @@ export default function SharePage({ tr }: Props) {
             </div>
             <div style={{marginTop:10, display:'flex', gap:8, flexWrap:'wrap'}}>
               <a href={`/api/stream/${tr.id}`} className="btn">▶ تشغيل</a>
-              {/* تنزيل باسم عربي صحيح عبر مسارك /api/d */}
-              <a href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`} className="btn" download>⬇ تنزيل</a>
+              {/* إن أردت تحميلًا باسم عربي من خادمك (بدل CDN)، بدّل هذا الرابط إلى /api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3 */}
+              <a href={`https://media.nashidona.net/file/nashidona/tracks/${tr.id}.mp3?download`} className="btn" rel="noopener" target="_blank">⬇ تنزيل</a>
               <button className="btn" onClick={() => {
                 const shareUrl = url
                 if (navigator.share) navigator.share({ title: fullTitle, text: 'نشيدُنا', url: shareUrl }).catch(()=>{})
