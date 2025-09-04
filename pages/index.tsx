@@ -781,26 +781,38 @@ export default function Home() {
 
     {/* ✅ زر تشغيل واحد إذا منِع التشغيل التلقائي (موبايل) */}
     {needsTap && (
-      <div className='sheet' onClick={()=>{ /* منع الإغلاق عند النقر على الخلفية */ }} style={{background:'rgba(0,0,0,0.55)'}}>
-        <div className='panel' style={{textAlign:'center'}}>
-          <div className='handle'/>
-          <div style={{fontWeight:700, marginBottom:8}}>جاهزون للتشغيل</div>
-          <div style={{color:'#374151', fontSize:14, marginBottom:12}}>اضغط الزر لبدء تشغيل الأنشودة</div>
-          <button
-            onClick={() => {
-              if (incomingTrack) playNow(incomingTrack);
-              const a = audioRef.current as HTMLAudioElement | null;
-              a?.play().catch(()=>{});
-              setNeedsTap(false);
-            }}
-            style={{padding:'12px 14px', background:'#059669', color:'#fff', borderRadius:10, border:'none'}}
-          >
-            ▶ اضغط للتشغيل
-          </button>
-        </div>
-      </div>
-    )}
+  <div className='sheet' onClick={()=>{ /* منع الإغلاق عند النقر على الخلفية */ }} style={{background:'rgba(0,0,0,0.55)'}}>
+    <div className='panel' style={{textAlign:'center'}}>
+      <div className='handle'/>
 
+      {/* 👇 عنوان الديناميكي: اسم النشيد */}
+      <div style={{fontWeight:700, marginBottom:4}}>
+        {incomingTrack?.title || current?.title || 'أنشودة'}
+      </div>
+
+      {/* (اختياري) عرض اسم المنشد إن وجد */}
+      {(incomingTrack?.artist || incomingTrack?.artist_text || current?.artist || current?.artist_text) && (
+        <div style={{color:'#374151', fontSize:13, marginBottom:10}}>
+          {incomingTrack?.artist || incomingTrack?.artist_text || current?.artist || current?.artist_text}
+        </div>
+      )}
+
+      <div style={{color:'#374151', fontSize:14, marginBottom:12}}>اضغط الزر للتشغيل</div>
+
+      <button
+        onClick={() => {
+          if (incomingTrack) playNow(incomingTrack);
+          const a = audioRef.current as HTMLAudioElement | null;
+          a?.play().catch(()=>{});
+          setNeedsTap(false);
+        }}
+        style={{padding:'12px 14px', background:'#059669', color:'#fff', borderRadius:10, border:'none'}}
+      >
+        ▶ اضغط للتشغيل
+      </button>
+    </div>
+  </div>
+)}
     {/* زر طافٍ للملاحظات على الجوال */}
     <button className="fbFab" onClick={()=>setFbOpen(true)} title="أرسل ملاحظة">💬</button>
 
