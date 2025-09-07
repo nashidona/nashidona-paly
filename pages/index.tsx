@@ -1,13 +1,23 @@
 // === Metrics helpers (add near other utils) ===
-function getFP() {
+// بدّل دالة getFP السابقة بهذه
+function getFP(): string {
   if (typeof window === 'undefined') return 'srv';
-  const k = 'nd_fp';
-  let v = localStorage.getItem(k);
-  if (!v) {
-    v = (crypto as any)?.randomUUID?.() || Math.random().toString(36).slice(2);
-    localStorage.setItem(k, v);
+  try {
+    const k = 'nd_fp';
+    let v = localStorage.getItem(k) ?? ''; // الآن v دائماً string
+    if (!v) {
+      const newV =
+        (typeof crypto !== 'undefined' && (crypto as any).randomUUID?.()) ||
+        Math.random().toString(36).slice(2);
+      localStorage.setItem(k, String(newV)); // يضمن أنها string
+      v = String(newV);
+    }
+    return v;
+  } catch {
+    return 'srv';
   }
-  return v;
+}
+
 }
 const postMetric = (url: string, body: any) =>
   fetch(url, {
