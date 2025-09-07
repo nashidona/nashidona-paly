@@ -1,3 +1,28 @@
+// === Metrics helpers (add near other utils) ===
+function getFP() {
+  if (typeof window === 'undefined') return 'srv';
+  const k = 'nd_fp';
+  let v = localStorage.getItem(k);
+  if (!v) {
+    v = (crypto as any)?.randomUUID?.() || Math.random().toString(36).slice(2);
+    localStorage.setItem(k, v);
+  }
+  return v;
+}
+const postMetric = (url: string, body: any) =>
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    // keepalive حتى لو انتقلنا لصفحة التحميل
+    keepalive: true,
+    body: JSON.stringify(body),
+  });
+
+// منع التكرار خلال 30 ثانية لكل نشيد
+const lastPlayMetricAt: Record<string, number> = {};
+const PLAY_DEBOUNCE_MS = 30_000;
+
+
 import React, { useEffect, useRef, useState } from 'react';
 
 // ===== Types =====
@@ -361,12 +386,23 @@ export default function Home() {
 
   // ===== وظائف التشغيل =====
   function playNow(tr: Track) {
-    setCurrent(tr);
-    setQueue((q) => (q.find((x) => String(x.id) === String(tr.id)) ? q : [tr, ...q]));
-    autoPlayPending.current = true;
-    retryRef.current = 0;
-    setMediaSession({ ...tr, artist: tr.artist || tr.artist_text, album: tr.album, cover_url: tr.cover_url }, audioRef.current);
-  }
+  setCurrent(tr);
+  setQueue((q) => (q.find((x) => String(x.id) === String(tr.id)) ? q : [tr, ...q]));
+  autoPlayPending.current = true;
+  retryRef.current = 0;
+  setMediaSession({ ...tr, artist: tr.artist || tr.artist_text, album: tr.album, cover_url: tr.cover_url }, audioRef.current);
+
+  // === NEW: send play-start metric (debounced 30s per track) ===
+  try {
+    const k = String(tr.id);
+    const now = Date.now();
+    if (!lastPlayMetricAt[k] || now - lastPlayMetricAt[k] > PLAY_DEBOUNCE_MS) {
+      lastPlayMetricAt[k] = now;
+      postMetric('/api/metrics/play-start', { id: tr.id, fp: getFP() });
+    }
+  } catch {}
+}
+
   function addToQueue(tr: Track) {
     setQueue((q) => (q.find((x) => String(x.id) === String(tr.id)) ? q : [...q, tr]));
   }
@@ -942,9 +978,18 @@ export default function Home() {
                     🔗
                   </button>
                   {/* تنزيل باسم عربي صحيح عبر /api/d */}
-                  <a href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`} className="btn sm" download title="تنزيل">
-                    ⬇
-                  </a>
+                 <a
+  href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`}
+  className="btn sm"
+  download
+  title="تنزيل"
+  onClick={() => {
+    try { postMetric('/api/metrics/download', { id: tr.id, fp: getFP() }); } catch {}
+  }}
+>
+  ⬇
+</a>
+                  
                   {/* قائمة + تشغيل */}
                   <button className="btn-queue" onClick={() => addToQueue(tr)} style={{ padding: '8px 10px', border: '1px solid #d1fae5', borderRadius: 8 }}>
                     + قائمة
