@@ -1,25 +1,21 @@
+// pages/api/download.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(url, key)
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') return res.status(405).end()
+  const { track_id } = req.body || {}
+  if (!track_id || !/^\d+$/.test(String(track_id))) return res.status(400).json({ error: 'bad track_id' })
+
   try {
-    if (req.method !== 'POST') return res.status(405).end()
-    const { id } = req.body || {}
-    if (!id) return res.status(400).json({ error: 'id is required' })
-
-    const ua = String(req.headers['user-agent'] || '').toLowerCase()
-    const isBot = /(bot|spider|crawler|preview|curl|wget|httpx|uptime|monitor)/.test(ua)
-    if (isBot) return res.json({ ok: true, skipped: 'bot' })
-
-const { error } = await supabase.rpc('increment_downloads', { p_track_id: Number(id) });
-
-    if (error) return res.status(500).json({ error: error.message })
+    await supabase.rpc('track_download', { tid: track_id })
     return res.json({ ok: true })
   } catch (e: any) {
-    return res.status(500).json({ error: e.message || 'server_error' })
+    return res.status(500).json({ error: e.message })
   }
 }
