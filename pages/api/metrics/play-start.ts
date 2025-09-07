@@ -1,26 +1,27 @@
+// pages/api/play-start.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(url, key)
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY! // لازم service key
+)
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') return res.status(405).end()
+  const { track_id, fp } = req.body || {}
+  if (!track_id || !/^\d+$/.test(String(track_id))) return res.status(400).json({ error: 'bad track_id' })
+
   try {
-    if (req.method !== 'POST') return res.status(405).end()
-    const { id } = req.body || {}
-    if (!id) return res.status(400).json({ error: 'id is required' })
+    // زيادة clicks بواحد
+    const { error } = await supabase
+      .from('tracks')
+      .update({ clicks: supabase.rpc('increment', { x: 'clicks' }) }) // أو نكتبها يدوي
+      .eq('id', track_id)
 
-    // فلترة بسيطة للـ bots عبر UA
-    const ua = String(req.headers['user-agent'] || '').toLowerCase()
-    const isBot = /(bot|spider|crawler|preview|curl|wget|httpx|uptime|monitor)/.test(ua)
-    if (isBot) return res.json({ ok: true, skipped: 'bot' })
-     const { error } = await supabase.rpc('increment_clicks', { p_track_id: Number(id) })
-
-    if (error) return res.status(500).json({ error: error.message })
-    // ملاحظة: إن كان الـ PostgREST لا يدعم increment مباشر، أضف RPC صغيرة (نعطيها أدناه)
+    if (error) throw error
     return res.json({ ok: true })
   } catch (e: any) {
-    return res.status(500).json({ error: e.message || 'server_error' })
+    return res.status(500).json({ error: e.message })
   }
 }
