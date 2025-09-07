@@ -15,14 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const ua = String(req.headers['user-agent'] || '').toLowerCase()
     const isBot = /(bot|spider|crawler|preview|curl|wget|httpx|uptime|monitor)/.test(ua)
     if (isBot) return res.json({ ok: true, skipped: 'bot' })
-
-    const { error } = await supabase
-      .from('tracks')
-      .update({ clicks: (undefined as any) }) // placeholder to use increment via rpc if needed
-      .eq('id', Number(id))
-
-    // استخدام increment عبر RPC أكثر أمانًا: إن كان لديك دالة، استبدل المقطع أعلاه بـ:
-    // const { error } = await supabase.rpc('increment_clicks', { p_track_id: Number(id) })
+     const { error } = await supabase.rpc('increment_clicks', { p_track_id: Number(id) })
 
     if (error) return res.status(500).json({ error: error.message })
     // ملاحظة: إن كان الـ PostgREST لا يدعم increment مباشر، أضف RPC صغيرة (نعطيها أدناه)
