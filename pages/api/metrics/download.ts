@@ -15,13 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const isBot = /(bot|spider|crawler|preview|curl|wget|httpx|uptime|monitor)/.test(ua)
     if (isBot) return res.json({ ok: true, skipped: 'bot' })
 
-    const { error } = await supabase
-      .from('tracks')
-      .update({ downloads: (undefined as any) })
-      .eq('id', Number(id))
-
-    // بديل مفضل عبر RPC:
-    // const { error } = await supabase.rpc('increment_downloads', { p_track_id: Number(id) })
+const { error } = await supabase.rpc('increment_downloads', { p_track_id: Number(id) });
 
     if (error) return res.status(500).json({ error: error.message })
     return res.json({ ok: true })
