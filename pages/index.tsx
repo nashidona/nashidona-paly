@@ -1004,8 +1004,6 @@ export default function Home() {
                   >
                     🔗
                   </button>
-
-
 <a
   href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`}
   className="btn sm"
@@ -1014,8 +1012,7 @@ export default function Home() {
 >
   ⬇
 </a>
-
-                  {/* قائمة + تشغيل */}
+            {/* قائمة + تشغيل */}
                   <button className="btn-queue" onClick={() => addToQueue(tr)} style={{ padding: '8px 10px', border: '1px solid #d1fae5', borderRadius: 8 }}>
                     + قائمة
                   </button>
