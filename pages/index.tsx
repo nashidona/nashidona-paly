@@ -1,29 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-// ===== Metrics helpers =====
-function getFP(): string {
-  if (typeof window === 'undefined') return 'srv';
-  const k = 'nd_fp';
-  let v = localStorage.getItem(k) ?? '';
-  if (!v) {
-    v = Math.random().toString(36).slice(2);
-    localStorage.setItem(k, v);
-  }
-  return v;
-}
-
-const postMetric = (url: string, body: any) =>
-  fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    keepalive: true, // يبقى الطلب حتى لو بدأ التحميل
-    body: JSON.stringify(body),
-  });
-
-// منع التكرار خلال 30 ثانية لكل نشيد
-const lastPlayMetricAt: Record<string, number> = {};
-const PLAY_DEBOUNCE_MS = 30_000;
-
 // ===== Types =====
 export type Track = {
   id: number | string;
@@ -35,10 +11,7 @@ export type Track = {
   class_child?: string | null;
   cover_url?: string | null;
   year?: string | null;
-  has_lyrics?: boolean;
-  // عدّادات (قد لا تأتي من الـAPI دائماً، فنجعلها اختيارية)
-  clicks?: number;
-  downloads?: number;
+  has_lyrics?: boolean; // لإظهار أيقونة الكلمات فقط عند التوفر
 };
 
 type LoopMode = 'none' | 'queue' | 'one';
@@ -51,7 +24,7 @@ function fmt(sec: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-function useDebounced<T>(value: T, delay = 350) {
+function useDebounced<T>(value: T, delay = 300) {
   const [v, setV] = useState(value);
   useEffect(() => {
     const t = setTimeout(() => setV(value), delay);
@@ -69,10 +42,7 @@ function shuffle<T>(arr: T[]) {
   return a;
 }
 
-function setMediaSession(
-  tr: { id: any; title: string; artist?: string | null; album?: string | null; cover_url?: string | null },
-  a?: HTMLAudioElement | null
-) {
+function setMediaSession(tr: { id: any; title: string; artist?: string | null; album?: string | null; cover_url?: string | null }, a?: HTMLAudioElement | null) {
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
   const cover = tr.cover_url || '/logo.png';
   const art = [
@@ -81,12 +51,7 @@ function setMediaSession(
     { src: cover, sizes: '512x512', type: 'image/png' },
   ];
   // @ts-ignore
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: tr.title,
-    artist: tr.artist || '',
-    album: tr.album || '',
-    artwork: art as any,
-  });
+  navigator.mediaSession.metadata = new MediaMetadata({ title: tr.title, artist: tr.artist || '', album: tr.album || '', artwork: art as any });
   const play = () => a?.play().catch(() => {});
   const pause = () => a?.pause();
   // @ts-ignore
@@ -115,11 +80,7 @@ function setMediaSession(
   // @ts-ignore
   if (a && 'setPositionState' in (navigator as any).mediaSession) {
     // @ts-ignore
-    (navigator as any).mediaSession.setPositionState({
-      duration: a.duration || 0,
-      position: a.currentTime || 0,
-      playbackRate: a.playbackRate || 1,
-    });
+    (navigator as any).mediaSession.setPositionState({ duration: a.duration || 0, position: a.currentTime || 0, playbackRate: a.playbackRate || 1 });
   }
 }
 
@@ -234,7 +195,7 @@ export default function Home() {
       setCount(total);
       setHasMore(page.length === 60 || newOffset + page.length < total);
       setItems((prev) => (append ? dedup([...prev, ...page]) : page));
-    } catch {
+    } catch (e: any) {
       setErr('تعذر جلب النتائج الآن');
       if (!append) setItems([]);
       setHasMore(false);
@@ -405,22 +366,7 @@ export default function Home() {
     autoPlayPending.current = true;
     retryRef.current = 0;
     setMediaSession({ ...tr, artist: tr.artist || tr.artist_text, album: tr.album, cover_url: tr.cover_url }, audioRef.current);
-
-    // إرسال play-start مرة كل 30 ثانية لكل تراك
-    try {
-      const k = String(tr.id);
-      const now = Date.now();
-      if (!lastPlayMetricAt[k] || now - lastPlayMetricAt[k] > PLAY_DEBOUNCE_MS) {
-        lastPlayMetricAt[k] = now;
-        // زيادة تفاؤلية محلية
-        setItems((prev) => prev.map((x) => (String(x.id) === k ? { ...x, clicks: (x.clicks || 0) + 1 } : x)));
-        setQueue((prev) => prev.map((x) => (String(x.id) === k ? { ...x, clicks: (x.clicks || 0) + 1 } : x)));
-
-        postMetric('/api/metrics/play-start', { id: tr.id, track_id: tr.id, fp: getFP() });
-      }
-    } catch {}
   }
-
   function addToQueue(tr: Track) {
     setQueue((q) => (q.find((x) => String(x.id) === String(tr.id)) ? q : [...q, tr]));
   }
@@ -766,7 +712,6 @@ export default function Home() {
       setFbBusy(false);
     }
   }
-
   // 🔔 تشغيل فوري عند فتح رابط المشاركة /?play=ID
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -789,19 +734,13 @@ export default function Home() {
             year: tr.year || null,
             cover_url: tr.cover_url || null,
             has_lyrics: !!(tr.lyrics && String(tr.lyrics).trim()),
-            clicks: tr.clicks ?? 0,
-            downloads: tr.downloads ?? 0,
           };
           playNow(t);
           const a = audioRef.current;
           if (a) {
             a.load();
-            try {
-              await a.play();
-            } catch {
-              setIncomingTrack(t);
-              setNeedsTap(true);
-            }
+            try { await a.play(); }
+            catch { setIncomingTrack(t); setNeedsTap(true); }
           } else {
             setIncomingTrack(t);
             setNeedsTap(true);
@@ -979,12 +918,7 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-
-                <div className="actions" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  {/* عدّادات */}
-                  <span className="metric" title="عدد التشغيل">▶ {typeof tr.clicks === 'number' ? tr.clicks : 0}</span>
-                  <span className="metric" title="عدد التحميل">⬇ {typeof tr.downloads === 'number' ? tr.downloads : 0}</span>
-
+                <div className="actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   {/* مشاركة (native share أو نسخ الرابط) */}
                   <button
                     className="btn sm"
@@ -993,26 +927,25 @@ export default function Home() {
                       try {
                         const origin = typeof window !== 'undefined' ? window.location.origin : 'https://play.nashidona.net';
                         const url = `${origin}/t/${tr.id}`;
+                        const title = tr.title + (tr.artist || tr.artist_text ? ` — ${tr.artist || tr.artist_text}` : '');
                         if (navigator.share) {
                           navigator.share({ url }).catch(() => {});
                         } else {
                           navigator.clipboard?.writeText(url);
                           alert('تم نسخ رابط المشاركة');
                         }
-                      } catch {}
+                      } catch {
+                        // silent
+                      }
                     }}
                   >
                     🔗
                   </button>
-<a
-  href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`}
-  className="btn sm"
-  download
-  title="تنزيل"
->
-  ⬇
-</a>
-            {/* قائمة + تشغيل */}
+                  {/* تنزيل باسم عربي صحيح عبر /api/d */}
+                  <a href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`} className="btn sm" download title="تنزيل">
+                    ⬇
+                  </a>
+                  {/* قائمة + تشغيل */}
                   <button className="btn-queue" onClick={() => addToQueue(tr)} style={{ padding: '8px 10px', border: '1px solid #d1fae5', borderRadius: 8 }}>
                     + قائمة
                   </button>
@@ -1030,38 +963,39 @@ export default function Home() {
       <footer ref={footerRef} style={{ position: 'fixed', bottom: 'var(--kb,0)', left: 0, right: 0, background: '#ffffffee', backdropFilter: 'blur(8px)', borderTop: '1px solid #e5e7eb', zIndex: 40 }}>
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <button onClick={() => playPrev(true)} title="السابق">⏮</button>
+            <button onClick={() => playPrev(true)} title="السابق">
+              ⏮
+            </button>
             <button
               onClick={() => {
                 const a = audioRef.current;
                 if (!a) return;
-                if (a.paused) a.play(); else a.pause();
+                if (a.paused) a.play();
+                else a.pause();
               }}
               title="تشغيل/إيقاف"
             >
               ⏯
             </button>
-            <button onClick={() => playNext(true)} title="التالي">⏭</button>
+            <button onClick={() => playNext(true)} title="التالي">
+              ⏭
+            </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 220 }}>
             <span style={{ width: 42, textAlign: 'left', fontVariantNumeric: 'tabular-nums' }}>{fmt(t)}</span>
-            <input
-              type="range"
-              min={0}
-              max={Math.max(1, dur)}
-              step={1}
-              value={Math.min(t, dur || 0)}
-              onChange={(e) => { const v = parseFloat(e.target.value); const a = audioRef.current; if (a) { a.currentTime = v; } setT(v); }}
-              style={{ flex: 1 }}
-            />
+            <input type="range" min={0} max={Math.max(1, dur)} step={1} value={Math.min(t, dur || 0)} onChange={(e) => { const v = parseFloat(e.target.value); const a = audioRef.current; if (a) { a.currentTime = v; } setT(v); }} style={{ flex: 1 }} />
             <span style={{ width: 42, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(dur)}</span>
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <button onClick={() => setLoop((l) => (l === 'none' ? 'queue' : l === 'queue' ? 'one' : 'none'))}
-              title={`نمط التكرار: ${loop === 'none' ? 'بدون' : loop === 'queue' ? 'القائمة' : 'المسار'}`}>
+            <button
+              onClick={() => setLoop((l) => (l === 'none' ? 'queue' : l === 'queue' ? 'one' : 'none'))}
+              title={`نمط التكرار: ${loop === 'none' ? 'بدون' : loop === 'queue' ? 'القائمة' : 'المسار'}`}
+            >
               {loop === 'none' ? '⏹' : loop === 'queue' ? '🔁' : '🔂'}
             </button>
-            <button onClick={shuffleQueue} title="خلط القائمة">🔀</button>
+            <button onClick={shuffleQueue} title="خلط القائمة">
+              🔀
+            </button>
             <select onChange={(e) => { const m = parseInt(e.target.value, 10); if (m > 0) startSleep(m); }} defaultValue="0" title="مؤقّت النوم">
               <option value="0">بدون مؤقّت</option>
               <option value="15">15د</option>
@@ -1084,11 +1018,15 @@ export default function Home() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
               <b>قائمة التشغيل</b>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <button onClick={() => setLoop((l) => (l === 'none' ? 'queue' : l === 'queue' ? 'one' : 'none'))}
-                  title={`نمط التكرار: ${loop === 'none' ? 'بدون' : loop === 'queue' ? 'القائمة' : 'المسار'}`}>
+                <button
+                  onClick={() => setLoop((l) => (l === 'none' ? 'queue' : l === 'queue' ? 'one' : 'none'))}
+                  title={`نمط التكرار: ${loop === 'none' ? 'بدون' : loop === 'queue' ? 'القائمة' : 'المسار'}`}
+                >
                   {loop === 'none' ? '⏹' : loop === 'queue' ? '🔁' : '🔂'}
                 </button>
-                <button onClick={shuffleQueue} title="خلط القائمة">🔀</button>
+                <button onClick={shuffleQueue} title="خلط القائمة">
+                  🔀
+                </button>
                 <select onChange={(e) => { const m = parseInt(e.target.value, 10); if (m > 0) startSleep(m); }} defaultValue="0" title="مؤقّت النوم">
                   <option value="0">بدون مؤقّت</option>
                   <option value="15">15د</option>
@@ -1098,7 +1036,9 @@ export default function Home() {
               </div>
               <div style={{ display: 'flex', gap: 8, marginInlineStart: 'auto' }}>
                 <button onClick={() => setOpen(false)}>إغلاق</button>
-                <button onClick={clearQueue} disabled={!queue.length}>تفريغ الكل</button>
+                <button onClick={clearQueue} disabled={!queue.length}>
+                  تفريغ الكل
+                </button>
               </div>
             </div>
             <div style={{ display: 'grid', gap: 8, maxHeight: '56vh', overflowY: 'auto' }}>
@@ -1106,7 +1046,9 @@ export default function Home() {
                 <div
                   key={String(tr.id)}
                   draggable
-                  onDragStart={(e) => { e.dataTransfer.setData('text/plain', String(i)); }}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', String(i));
+                  }}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
@@ -1132,10 +1074,18 @@ export default function Home() {
                     {tr.title}
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => move(tr.id, -1)} disabled={i === 0} title="أعلى">⬆</button>
-                    <button onClick={() => move(tr.id, +1)} disabled={i === queue.length - 1} title="أسفل">⬇</button>
-                    <button onClick={() => removeFromQueue(tr.id)} title="حذف">✕</button>
-                    <button onClick={() => { setCurrent(tr); }} title="تشغيل">▶</button>
+                    <button onClick={() => move(tr.id, -1)} disabled={i === 0} title="أعلى">
+                      ⬆
+                    </button>
+                    <button onClick={() => move(tr.id, +1)} disabled={i === queue.length - 1} title="أسفل">
+                      ⬇
+                    </button>
+                    <button onClick={() => removeFromQueue(tr.id)} title="حذف">
+                      ✕
+                    </button>
+                    <button onClick={() => { setCurrent(tr); }} title="تشغيل">
+                      ▶
+                    </button>
                   </div>
                 </div>
               ))}
@@ -1188,7 +1138,9 @@ export default function Home() {
         </div>
       )}
 
-      <button className="fbFab" onClick={() => setFbOpen(true)} title="أرسل ملاحظة">💬</button>
+      <button className="fbFab" onClick={() => setFbOpen(true)} title="أرسل ملاحظة">
+        💬
+      </button>
 
       {fbOpen && (
         <div className="sheet" onClick={() => setFbOpen(false)}>
@@ -1221,8 +1173,6 @@ export default function Home() {
         .chip:hover{ background:#dcfce7 }
         .linkish{ cursor:pointer; text-decoration:underline; text-underline-offset:3px }
 
-        .metric{ font-size:12px; color:#374151; padding:2px 6px; border:1px solid #e5e7eb; border-radius:6px; background:#fff; }
-
         .trackCard { width:100%; }
         .trackCard > * { min-width:0; }
         .trackRow > * { min-width:0; }
@@ -1237,7 +1187,7 @@ export default function Home() {
 
         @media (max-width: 520px) {
           .trackCard { flex-direction: column; align-items: stretch; width:100%; }
-          .actions { width:100%; display:grid !important; grid-template-columns: repeat(6, auto); gap:8px; align-items:center; justify-content:flex-start; }
+          .actions { width:100%; display:grid !important; grid-template-columns: repeat(4, auto); gap:8px; align-items:center; justify-content:flex-start; }
           .btn-play { width:100%; grid-column: 1 / -1; }
           header .stats { display:none; }
         }
