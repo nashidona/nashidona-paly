@@ -1005,25 +1005,15 @@ export default function Home() {
                     🔗
                   </button>
 
-                  {/* تنزيل باسم عربي صحيح عبر /api/d */}
-                  <a
-                    href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`}
-                    className="btn sm"
-                    download
-                    title="تنزيل"
-                    onClick={() => {
-                      try {
-                        // زيادة تفاؤلية
-                        const k = String(tr.id);
-                        setItems((prev) => prev.map((x) => (String(x.id) === k ? { ...x, downloads: (x.downloads || 0) + 1 } : x)));
-                        setQueue((prev) => prev.map((x) => (String(x.id) === k ? { ...x, downloads: (x.downloads || 0) + 1 } : x)));
-                        // إرسال المتركس
-                        postMetric('/api/metrics/download', { id: tr.id, track_id: tr.id, fp: getFP() });
-                      } catch {}
-                    }}
-                  >
-                    ⬇
-                  </a>
+
+<a
+  href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`}
+  className="btn sm"
+  download
+  title="تنزيل"
+>
+  ⬇
+</a>
 
                   {/* قائمة + تشغيل */}
                   <button className="btn-queue" onClick={() => addToQueue(tr)} style={{ padding: '8px 10px', border: '1px solid #d1fae5', borderRadius: 8 }}>
