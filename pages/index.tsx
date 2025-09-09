@@ -376,9 +376,7 @@ export default function Home() {
   }
   function removeFromQueue(id: Track['id']) {
     setQueue((q) => q.filter((x) => String(x.id) !== String(id)));
-    </div>
     if (current && String(current.id) === String(id)) setTimeout(() => playNext(true), 0);
-    
   }
   function move(id: Track['id'], dir: -1 | 1) {
     setQueue((q) => {
@@ -758,35 +756,41 @@ export default function Home() {
 
   return (
     <div style={{ fontFamily: 'system-ui,-apple-system,Segoe UI,Tahoma', background: '#f8fafc', minHeight: '100vh' }}>
-<header style={{ position: 'sticky', top: 0, background: '#fff', borderBottom: '1px solid #e5e7eb', zIndex: 10 }}>
-  <div style={{ maxWidth: 960, margin: '0 auto', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-    {/* ... محتوى الشعار والإحصاءات ... */}
-  </div> {/* ← هنا كان ناقص > */}
-  {current && ( /* ← هنا شريط يشغّل الآن */
+      <header style={{ position: 'sticky', top: 0, background: '#fff', borderBottom: '1px solid #e5e7eb', zIndex: 10 }}>
+        <div style={{ maxWidth: 960, margin: '0 auto', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <img src="/logo.png" width={36} height={36} alt="logo" />
+            <b>Nashidona • النسخة التجريبية</b>
+            <button onClick={() => setFbOpen(true)} className="fbBtn" title="أرسل ملاحظة">
+              💬 ملاحظات
+            </button>
+          </div>
+          <div className="stats" style={{ fontSize: 12, color: '#6b7280' }}>
+            النتائج: {items.length}
+            {count ? ` / ${count}` : ''}
+          </div>
+        </div>
+  {current && (
     <div className="nowBar">
       <img src={current.cover_url || '/logo.png'} width={32} height={32} alt="" />
       <div className="nowMeta">
         <div className="nowTitle">{current.title}</div>
-        {(current.artist || current.artist_text) && (
-          <div className="nowArtist">{current.artist || current.artist_text}</div>
-        )}
+        {(current.artist || current.artist_text) && <div className="nowArtist">{current.artist || current.artist_text}</div>}
       </div>
       <button
         className="ctl nowBtn"
         onClick={() => {
           const a = audioRef.current;
           if (!a) return;
-          if (a.paused) a.play();
-          else a.pause();
+          if (a.paused) a.play(); else a.pause();
         }}
         aria-label="تشغيل/إيقاف الآن"
         title="تشغيل/إيقاف"
-      >
-        ⏯
-      </button>
+      >⏯</button>
     </div>
   )}
-</header>
+
+      </header>
 
       <section style={{ maxWidth: 960, margin: '20px auto 12px auto', padding: '12px 16px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
@@ -893,14 +897,10 @@ export default function Home() {
                     }}
                   />
                   <div className="trackMeta" style={{ minWidth: 0, flex: 1 }}>
-                  <div className="trackTitle" title={tr.title} style={{ color: '#064e3b', fontWeight: 700, lineHeight: 1.35, display: 'flex', alignItems: 'center', gap: 6 }}>
-  <button className="titleBtn" onClick={() => playNow(tr)} aria-label="تشغيل هذا النشيد">
-    {tr.title}
-  </button>
+                    <div className="trackTitle" title={tr.title} style={{ color: '#064e3b', fontWeight: 700, lineHeight: 1.35, display: 'flex', alignItems: 'center', gap: 6 }}>
+  <button className="titleBtn" onClick={() => playNow(tr)} aria-label="تشغيل هذا النشيد">{tr.title}</button>
   {(lyricsMap[String(tr.id)] || tr.has_lyrics) ? (
-    <button className="lyricsIcon" title="كلمات" onClick={() => openLyrics(tr)} aria-label="عرض كلمات النشيد">
-      🎼
-    </button>
+    <button className="lyricsIcon" title="كلمات" onClick={() => openLyrics(tr)} aria-label="عرض كلمات النشيد">🎼</button>
   ) : null}
 </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '6px 0' }}>
@@ -1060,7 +1060,7 @@ export default function Home() {
             </div>
             <div style={{ display: 'grid', gap: 8, maxHeight: '56vh', overflowY: 'auto' }}>
               {queue.map((tr, i) => (
-              <div
+                <div
   key={String(tr.id)}
   draggable
   onDragStart={(e) => { e.dataTransfer.setData('text/plain', String(i)); }}
@@ -1076,30 +1076,31 @@ export default function Home() {
     });
   }}
   className="qRow"
-  style={{
-    border: '1px solid #e5e7eb',
-    borderRadius: 10,
-    padding: '8px',
-    background: current && String(current.id) === String(tr.id) ? '#ecfdf5' : '#fff',
-  }}
+  style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: '8px', background: current && String(current.id) === String(tr.id) ? '#ecfdf5' : '#fff' }}
 >
-  {/* زر تشغيل كبير */}
-  <button className="qPlay ctl" onClick={() => setCurrent(tr)} aria-label="تشغيل">
-    ▶
-  </button>
-
-  {/* العنوان (سطران) — بالنقر يشغّل */}
-  <button className="qTitle" onClick={() => setCurrent(tr)} title={tr.title} aria-label={`تشغيل: ${tr.title}`}>
-    {tr.title}
-  </button>
-
-  {/* بقية الأزرار */}
+  <button className="qPlay ctl" onClick={() => setCurrent(tr)} aria-label="تشغيل">▶</button>
+  <button className="qTitle" onClick={() => setCurrent(tr)} title={tr.title} aria-label={`تشغيل: ${tr.title}`}>{tr.title}</button>
   <div className="qActions">
     <button className="qAct" onClick={() => move(tr.id, -1)} disabled={i === 0} title="أعلى" aria-label="نقل لأعلى">⬆</button>
     <button className="qAct" onClick={() => move(tr.id, +1)} disabled={i === queue.length - 1} title="أسفل" aria-label="نقل لأسفل">⬇</button>
     <button className="qAct" onClick={() => removeFromQueue(tr.id)} title="حذف" aria-label="حذف">✕</button>
   </div>
 </div>
+<div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => move(tr.id, -1)} disabled={i === 0} title="أعلى">
+                      ⬆
+                    </button>
+                    <button onClick={() => move(tr.id, +1)} disabled={i === queue.length - 1} title="أسفل">
+                      ⬇
+                    </button>
+                    <button onClick={() => removeFromQueue(tr.id)} title="حذف">
+                      ✕
+                    </button>
+                    <button onClick={() => { setCurrent(tr); }} title="تشغيل">
+                      ▶
+                    </button>
+                  </div>
+                </div>
               ))}
               {!queue.length && <div style={{ color: '#6b7280' }}>لا يوجد عناصر بعد. أضف من النتائج أعلاه.</div>}
             </div>
@@ -1175,28 +1176,38 @@ export default function Home() {
         </div>
       )}
 
-     <style jsx global>{`
-  *,*::before,*::after{ box-sizing:border-box }
-  html,body{ max-width:100%; overflow-x:hidden; margin:0 }
-  img,video,canvas{ max-width:100%; height:auto; display:block }
-  footer{ left:0; right:0; transform:translateZ(0) }
+      <style jsx global>{`
+        *,*::before,*::after{ box-sizing:border-box }
+        html,body{ max-width:100%; overflow-x:hidden; margin:0 }
+        img,video,canvas{ max-width:100%; height:auto; display:block }
+        footer{ left:0; right:0; transform:translateZ(0) }
 
-  .chip{ font-size:12px; padding:4px 8px; border:1px solid #d1fae5; border-radius:999px; background:#f0fdf4; color:#065f46; cursor:pointer; }
-  .chip:hover{ background:#dcfce7 }
-  .linkish{ cursor:pointer; text-decoration:underline; text-underline-offset:3px }
+        .chip{ font-size:12px; padding:4px 8px; border:1px solid #d1fae5; border-radius:999px; background:#f0fdf4; color:#065f46; cursor:pointer; }
+        .chip:hover{ background:#dcfce7 }
+        .linkish{ cursor:pointer; text-decoration:underline; text-underline-offset:3px }
 
-  .trackCard { width:100%; }
-  .trackCard > * { min-width:0; }
-  .trackRow > * { min-width:0; }
-  .trackTitle, .trackSub { white-space: normal; word-break: break-word; overflow-wrap: anywhere; display: block; }
-  .lyricsIcon { border:1px solid #e5e7eb; border-radius:6px; padding:2px 6px; font-size:12px; background:#fff; cursor:pointer; }
+        .trackCard { width:100%; }
+        .trackCard > * { min-width:0; }
+        .trackRow > * { min-width:0; }
+        .trackTitle, .trackSub { white-space: normal; word-break: break-word; overflow-wrap: anywhere; display: block; }
+        .lyricsIcon { border:1px solid #e5e7eb; border-radius:6px; padding:2px 6px; font-size:12px; background:#fff; cursor:pointer; }
 
-  .fbBtn { padding:4px 8px; border:1px solid #e5e7eb; background:#fff; border-radius:8px; font-size:12px; }
-  .fbFab { position: fixed; left: 12px; bottom: calc(var(--kb,0) + var(--footerH,160px) + 12px); z-index: 50; border:1px solid #e5e7eb; background:#fff; width:42px; height:42px; border-radius:999px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.12); }
+        .fbBtn { padding:4px 8px; border:1px solid #e5e7eb; background:#fff; border-radius:8px; font-size:12px; }
+        .fbFab { position: fixed; left: 12px; bottom: calc(var(--kb,0) + var(--footerH,160px) + 12px); z-index: 50; border:1px solid #e5e7eb; background:#fff; width:42px; height:42px; border-radius:999px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.12); }
 
-  .btn.sm { padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 8px; background:#fff; }
-  .btn.sm:hover { background:#f8fafc; }
+        .btn.sm { padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 8px; background:#fff; }
+        .btn.sm:hover { background:#f8fafc; }
 
+        @media (max-width: 520px) {
+          .trackCard { flex-direction: column; align-items: stretch; width:100%; }
+          .actions { width:100%; display:grid !important; grid-template-columns: repeat(4, auto); gap:8px; align-items:center; justify-content:flex-start; }
+          .btn-play { width:100%; grid-column: 1 / -1; }
+          header .stats { display:none; }
+        }
+        .sheet{ position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.25); }
+        .sheet .panel{ position: absolute; left:0; right:0; bottom:0; background:#fff; border-top-left-radius:16px; border-top-right-radius:16px; padding: 10px; box-shadow:0 -10px 30px rgba(0,0,0,.15); padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+        .sheet .handle{ width:44px; height:5px; background:#e5e7eb; border-radius:999px; margin:6px auto 10px; }
+      
   /* === جديد: لمس مريح للأزرار الأساسية === */
   .ctl { min-width: 44px; min-height: 44px; padding: 8px 10px; font-size: 18px; border: 1px solid #e5e7eb; border-radius: 10px; background:#fff; }
   .ctl:active { transform: scale(.98); }
@@ -1251,7 +1262,6 @@ export default function Home() {
   .nowArtist{ font-size:12px; color:#374151; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .nowBtn{ font-size:18px; }
 
-  /* تحسينات موبايل */
   @media (max-width: 520px){
     .btn.sm, .btn-queue, .btn-play { min-height: 44px; }
     .lyricsIcon{ min-height: 32px; }
@@ -1259,7 +1269,6 @@ export default function Home() {
     input[type="range"]{ height: 26px; }
   }
 `}</style>
-
     </div>
   );
 }
