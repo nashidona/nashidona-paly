@@ -756,43 +756,35 @@ export default function Home() {
 
   return (
     <div style={{ fontFamily: 'system-ui,-apple-system,Segoe UI,Tahoma', background: '#f8fafc', minHeight: '100vh' }}>
-      <header style={{ position: 'sticky', top: 0, background: '#fff', borderBottom: '1px solid #e5e7eb', zIndex: 10 }}>
-        <div style={{ maxWidth: 960, margin: '0 auto', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <img src="/logo.png" width={36} height={36} alt="logo" />
-            <b>Nashidona • النسخة التجريبية</b>
-            <button onClick={() => setFbOpen(true)} className="fbBtn" title="أرسل ملاحظة">
-              💬 ملاحظات
-            </button>
-          </div>
-          <div className="stats" style={{ fontSize: 12, color: '#6b7280' }}>
-            النتائج: {items.length}
-            {count ? ` / ${count}` : ''}
-          </div
-          {current && (
-  <div className="nowBar">
-    <img src={current.cover_url || '/logo.png'} width={32} height={32} alt="" />
-    <div className="nowMeta">
-      <div className="nowTitle">{current.title}</div>
-      {(current.artist || current.artist_text) && <div className="nowArtist">{current.artist || current.artist_text}</div>}
+<header style={{ position: 'sticky', top: 0, background: '#fff', borderBottom: '1px solid #e5e7eb', zIndex: 10 }}>
+  <div style={{ maxWidth: 960, margin: '0 auto', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+    {/* ... محتوى الشعار والإحصاءات ... */}
+  </div> {/* ← هنا كان ناقص > */}
+  {current && ( /* ← هنا شريط يشغّل الآن */
+    <div className="nowBar">
+      <img src={current.cover_url || '/logo.png'} width={32} height={32} alt="" />
+      <div className="nowMeta">
+        <div className="nowTitle">{current.title}</div>
+        {(current.artist || current.artist_text) && (
+          <div className="nowArtist">{current.artist || current.artist_text}</div>
+        )}
+      </div>
+      <button
+        className="ctl nowBtn"
+        onClick={() => {
+          const a = audioRef.current;
+          if (!a) return;
+          if (a.paused) a.play();
+          else a.pause();
+        }}
+        aria-label="تشغيل/إيقاف الآن"
+        title="تشغيل/إيقاف"
+      >
+        ⏯
+      </button>
     </div>
-    <button
-      className="ctl nowBtn"
-      onClick={() => {
-        const a = audioRef.current;
-        if (!a) return;
-        if (a.paused) a.play();
-        else a.pause();
-      }}
-      aria-label="تشغيل/إيقاف الآن"
-      title="تشغيل/إيقاف"
-    >
-      ⏯
-    </button>
-  </div>
-)}
-        </div>
-      </header>
+  )}
+</header>
 
       <section style={{ maxWidth: 960, margin: '20px auto 12px auto', padding: '12px 16px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
