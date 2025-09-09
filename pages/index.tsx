@@ -376,7 +376,9 @@ export default function Home() {
   }
   function removeFromQueue(id: Track['id']) {
     setQueue((q) => q.filter((x) => String(x.id) !== String(id)));
+    </div>
     if (current && String(current.id) === String(id)) setTimeout(() => playNext(true), 0);
+    
   }
   function move(id: Track['id'], dir: -1 | 1) {
     setQueue((q) => {
@@ -1173,119 +1175,91 @@ export default function Home() {
         </div>
       )}
 
-      <style jsx global>{`
-        *,*::before,*::after{ box-sizing:border-box }
-        html,body{ max-width:100%; overflow-x:hidden; margin:0 }
-        img,video,canvas{ max-width:100%; height:auto; display:block }
-        footer{ left:0; right:0; transform:translateZ(0) }
+     <style jsx global>{`
+  *,*::before,*::after{ box-sizing:border-box }
+  html,body{ max-width:100%; overflow-x:hidden; margin:0 }
+  img,video,canvas{ max-width:100%; height:auto; display:block }
+  footer{ left:0; right:0; transform:translateZ(0) }
 
-        .chip{ font-size:12px; padding:4px 8px; border:1px solid #d1fae5; border-radius:999px; background:#f0fdf4; color:#065f46; cursor:pointer; }
-        .chip:hover{ background:#dcfce7 }
-        .linkish{ cursor:pointer; text-decoration:underline; text-underline-offset:3px }
+  .chip{ font-size:12px; padding:4px 8px; border:1px solid #d1fae5; border-radius:999px; background:#f0fdf4; color:#065f46; cursor:pointer; }
+  .chip:hover{ background:#dcfce7 }
+  .linkish{ cursor:pointer; text-decoration:underline; text-underline-offset:3px }
 
-        .trackCard { width:100%; }
-        .trackCard > * { min-width:0; }
-        .trackRow > * { min-width:0; }
-        .trackTitle, .trackSub { white-space: normal; word-break: break-word; overflow-wrap: anywhere; display: block; }
-        .lyricsIcon { border:1px solid #e5e7eb; border-radius:6px; padding:2px 6px; font-size:12px; background:#fff; cursor:pointer; }
+  .trackCard { width:100%; }
+  .trackCard > * { min-width:0; }
+  .trackRow > * { min-width:0; }
+  .trackTitle, .trackSub { white-space: normal; word-break: break-word; overflow-wrap: anywhere; display: block; }
+  .lyricsIcon { border:1px solid #e5e7eb; border-radius:6px; padding:2px 6px; font-size:12px; background:#fff; cursor:pointer; }
 
-        .fbBtn { padding:4px 8px; border:1px solid #e5e7eb; background:#fff; border-radius:8px; font-size:12px; }
-        .fbFab { position: fixed; left: 12px; bottom: calc(var(--kb,0) + var(--footerH,160px) + 12px); z-index: 50; border:1px solid #e5e7eb; background:#fff; width:42px; height:42px; border-radius:999px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.12); }
+  .fbBtn { padding:4px 8px; border:1px solid #e5e7eb; background:#fff; border-radius:8px; font-size:12px; }
+  .fbFab { position: fixed; left: 12px; bottom: calc(var(--kb,0) + var(--footerH,160px) + 12px); z-index: 50; border:1px solid #e5e7eb; background:#fff; width:42px; height:42px; border-radius:999px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.12); }
 
-        .btn.sm { padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 8px; background:#fff; }
-        .btn.sm:hover { background:#f8fafc; }
+  .btn.sm { padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 8px; background:#fff; }
+  .btn.sm:hover { background:#f8fafc; }
 
-        @media (max-width: 520px) {
-          .trackCard { flex-direction: column; align-items: stretch; width:100%; }
-          .actions { width:100%; display:grid !important; grid-template-columns: repeat(4, auto); gap:8px; align-items:center; justify-content:flex-start; }
-          .btn-play { width:100%; grid-column: 1 / -1; }
-          header .stats { display:none; }
-        }
-        .sheet{ position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.25); }
-        .sheet .panel{ position: absolute; left:0; right:0; bottom:0; background:#fff; border-top-left-radius:16px; border-top-right-radius:16px; padding: 10px; box-shadow:0 -10px 30px rgba(0,0,0,.15); padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
-        .sheet .handle{ width:44px; height:5px; background:#e5e7eb; border-radius:999px; margin:6px auto 10px; }
-      `}
-        /* لمس مريح للأزرار الأساسية */
-.ctl { min-width: 44px; min-height: 44px; padding: 8px 10px; font-size: 18px; border: 1px solid #e5e7eb; border-radius: 10px; background:#fff; }
-.ctl:active { transform: scale(.98); }
+  /* === جديد: لمس مريح للأزرار الأساسية === */
+  .ctl { min-width: 44px; min-height: 44px; padding: 8px 10px; font-size: 18px; border: 1px solid #e5e7eb; border-radius: 10px; background:#fff; }
+  .ctl:active { transform: scale(.98); }
 
-/* عنوان قابل للنقر في بطاقة النتائج — سطران */
-.titleBtn{
-  all: unset;
-  cursor: pointer;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  max-width: 100%;
-}
+  /* عنوان قابل للنقر في بطاقة النتائج — سطران */
+  .titleBtn{
+    all: unset;
+    cursor: pointer;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    max-width: 100%;
+    color: #064e3b;
+    font-weight: 700;
+    line-height: 1.35;
+  }
 
-/* صف قائمة التشغيل (Grid) */
-.qRow{
-  display: grid;
-  grid-template-columns: 48px 1fr auto;
-  align-items: center;
-  gap: 8px;
-}
-.qPlay{ font-size: 18px; }
-.qActions{ display: flex; gap: 6px; }
-.qAct{ min-width: 40px; min-height: 40px; padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 8px; background:#fff; }
-.qAct:disabled{ opacity:.5; cursor:not-allowed }
+  /* صف قائمة التشغيل (Grid) */
+  .qRow{ display:grid; grid-template-columns: 48px 1fr auto; align-items:center; gap:8px; }
+  .qPlay{ font-size:18px; }
+  .qActions{ display:flex; gap:6px; }
+  .qAct{ min-width:40px; min-height:40px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; }
+  .qAct:disabled{ opacity:.5; cursor:not-allowed }
 
-/* عنوان العنصر داخل قائمة التشغيل — سطران بالنقر للتشغيل */
-.qTitle{
-  all: unset;
-  cursor: pointer;
-  text-align: start;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  line-height: 1.4;
-  font-size: 14px;
-}
-/* شريط "يشغّل الآن" داخل الهيدر */
-.nowBar{
-  max-width: 960px;
-  margin: 0 auto 8px;
-  padding: 6px 12px;
-  display: grid;
-  grid-template-columns: 36px 1fr auto;
-  gap: 8px;
-  align-items: center;
-}
-.nowBar img{
-  border-radius: 8px;
-  object-fit: cover;
-  background: #f3f4f6;
-}
-.nowMeta{ min-width: 0 }
-.nowTitle{
-  font-weight: 700; color: #065f46; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.nowArtist{
-  font-size: 12px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.nowBtn{ font-size: 18px; }
+  /* عنوان العنصر داخل قائمة التشغيل — سطران بالنقر للتشغيل */
+  .qTitle{
+    all: unset;
+    cursor: pointer;
+    text-align: start;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.4;
+    font-size: 14px;
+  }
 
-/* تحسينات موبايل */
-@media (max-width: 520px){
-  .btn.sm, .btn-queue, .btn-play { min-height: 44px; }
-  .lyricsIcon{ min-height: 32px; }
+  /* شريط "يشغَّل الآن" داخل الهيدر */
+  .nowBar{
+    max-width: 960px;
+    margin: 0 auto 8px;
+    padding: 6px 12px;
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+  .nowBar img{ border-radius:8px; object-fit:cover; background:#f3f4f6; }
+  .nowMeta{ min-width: 0 }
+  .nowTitle{ font-weight:700; color:#065f46; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .nowArtist{ font-size:12px; color:#374151; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .nowBtn{ font-size:18px; }
 
-  /* بطاقة النتائج: شبكة أزرار ثابتة */
-  .actions { width:100%; display:grid !important; grid-template-columns: repeat(4, minmax(44px,auto)); gap:8px; }
+  /* تحسينات موبايل */
+  @media (max-width: 520px){
+    .btn.sm, .btn-queue, .btn-play { min-height: 44px; }
+    .lyricsIcon{ min-height: 32px; }
+    .actions { width:100%; display:grid !important; grid-template-columns: repeat(4, minmax(44px, auto)); gap:8px; align-items:center; justify-content:flex-start; }
+    input[type="range"]{ height: 26px; }
+  }
+`}</style>
 
-  /* شريط التقدم أسهل لمسًا */
-  input[type="range"]{ height: 26px; }
-}
-
-      <button className="ctl" onClick={() => playPrev(true)} title="السابق">⏮</button>
-<button className="ctl"
-  onClick={() => { const a = audioRef.current; if (!a) return; if (a.paused) a.play(); else a.pause(); }}
-  title="تشغيل/إيقاف">⏯</button>
-<button className="ctl" onClick={() => playNext(true)} title="التالي">⏭</button>
-      </style>
     </div>
   );
 }
