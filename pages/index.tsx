@@ -535,6 +535,68 @@ export default function Home() {
     const qEl = queueRefs.current[key];
     if (open && qEl) { try { qEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch {} }
   }, [current, open]);
+  // إضافة كل النتائج إلى قائمة التشغيل
+  async function addAllResultsToQueue() {
+    if (dq.trim() === '') {
+      // بدون بحث: أضف العناصر المعروضة حالياً
+      if (!items.length) return;
+      setQueue((q) => {
+        const seen = new Set(q.map((x) => String(x.id)));
+        const merged = [...q];
+        items.forEach((tr) => {
+          const k = String(tr.id);
+          if (!seen.has(k)) { merged.push(tr); seen.add(k); }
+        });
+        return merged;
+      });
+      alert(`تمت إضافة ${items.length} إلى قائمة التشغيل`);
+      return;
+    }
+
+    // مع بحث: اجلب حتى 200 عنصر على الأكثر
+    const total = count && count > 0 ? count : items.length;
+    const cap = Math.min(total, 200);
+    if (cap <= 0) return;
+
+    if (cap > items.length && cap > 120) {
+      if (!confirm(`سيتم إضافة حتى ${cap} أنشودة إلى القائمة. هل أنت متأكد؟`)) return;
+    }
+
+    let all = [...items];
+    let nextOffset = items.length;
+    const PAGE = 60;
+    const maxLoops = 50;
+
+    for (let loop = 0; all.length < cap && loop < maxLoops; loop++) {
+      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=${PAGE}&offset=${nextOffset}`);
+      if (!r.ok) break;
+      const j = await r.json();
+      const page: Track[] = Array.isArray(j.items) ? j.items : [];
+      if (!page.length) break;
+
+      // دمج بدون تكرار
+      const seen = new Set(all.map((x) => String(x.id)));
+      for (const tr of page) {
+        const k = String(tr.id);
+        if (!seen.has(k)) { all.push(tr); seen.add(k); }
+        if (all.length >= cap) break;
+      }
+
+      nextOffset += PAGE;
+    }
+
+    const slice = all.slice(0, cap);
+    setQueue((q) => {
+      const seen = new Set(q.map((x) => String(x.id)));
+      const merged = [...q];
+      slice.forEach((tr) => {
+        const k = String(tr.id);
+        if (!seen.has(k)) { merged.push(tr); seen.add(k); }
+      });
+      return merged;
+    });
+    alert(`تمت إضافة ${slice.length} إلى قائمة التشغيل`);
+  }
 
   // إرسال ملاحظة
   async function submitFeedback() {
