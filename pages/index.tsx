@@ -1120,7 +1120,7 @@ export default function Home() {
   )}
 </div>
 </div>
-      )}
+    
 
       {/* لوحة كلمات النشيد */}
       {showLyrics.open && (
