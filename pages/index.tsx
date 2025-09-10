@@ -11,7 +11,7 @@ export type Track = {
   class_child?: string | null;
   cover_url?: string | null;
   year?: string | null;
-  has_lyrics?: boolean; // لإظهار أيقونة الكلمات فقط عند التوفر
+  has_lyrics?: boolean;
 };
 
 type LoopMode = 'none' | 'queue' | 'one';
@@ -42,7 +42,10 @@ function shuffle<T>(arr: T[]) {
   return a;
 }
 
-function setMediaSession(tr: { id: any; title: string; artist?: string | null; album?: string | null; cover_url?: string | null }, a?: HTMLAudioElement | null) {
+function setMediaSession(
+  tr: { id: any; title: string; artist?: string | null; album?: string | null; cover_url?: string | null },
+  a?: HTMLAudioElement | null
+) {
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
   const cover = tr.cover_url || '/logo.png';
   const art = [
@@ -51,7 +54,12 @@ function setMediaSession(tr: { id: any; title: string; artist?: string | null; a
     { src: cover, sizes: '512x512', type: 'image/png' },
   ];
   // @ts-ignore
-  navigator.mediaSession.metadata = new MediaMetadata({ title: tr.title, artist: tr.artist || '', album: tr.album || '', artwork: art as any });
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: tr.title,
+    artist: tr.artist || '',
+    album: tr.album || '',
+    artwork: art as any,
+  });
   const play = () => a?.play().catch(() => {});
   const pause = () => a?.pause();
   // @ts-ignore
@@ -80,7 +88,11 @@ function setMediaSession(tr: { id: any; title: string; artist?: string | null; a
   // @ts-ignore
   if (a && 'setPositionState' in (navigator as any).mediaSession) {
     // @ts-ignore
-    (navigator as any).mediaSession.setPositionState({ duration: a.duration || 0, position: a.currentTime || 0, playbackRate: a.playbackRate || 1 });
+    (navigator as any).mediaSession.setPositionState({
+      duration: a.duration || 0,
+      position: a.currentTime || 0,
+      playbackRate: a.playbackRate || 1,
+    });
   }
 }
 
@@ -195,7 +207,7 @@ export default function Home() {
       setCount(total);
       setHasMore(page.length === 60 || newOffset + page.length < total);
       setItems((prev) => (append ? dedup([...prev, ...page]) : page));
-    } catch (e: any) {
+    } catch {
       setErr('تعذر جلب النتائج الآن');
       if (!append) setItems([]);
       setHasMore(false);
@@ -249,7 +261,7 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dq]);
 
-  // ✅ تحضير توفر الكلمات لعناصر الصفحة الأولى (خفيف)
+  // ✅ تحضير توفر الكلمات لعناصر الصفحة الأولى
   useEffect(() => {
     if (!items.length) return;
     const sample = items.slice(0, 36).filter((it) => lyricsMap[String(it.id)] === undefined);
@@ -366,6 +378,7 @@ export default function Home() {
     autoPlayPending.current = true;
     retryRef.current = 0;
     setMediaSession({ ...tr, artist: tr.artist || tr.artist_text, album: tr.album, cover_url: tr.cover_url }, audioRef.current);
+    setTimeout(() => audioRef.current?.play().catch(() => {}), 0);
   }
   function addToQueue(tr: Track) {
     setQueue((q) => (q.find((x) => String(x.id) === String(tr.id)) ? q : [...q, tr]));
@@ -465,12 +478,12 @@ export default function Home() {
     const onTime = () => {
       if ((a.currentTime || 0) > 0) lastProgressRef.current = Date.now();
       setT(a.currentTime || 0);
-      if (
-        typeof navigator !== 'undefined' &&
-        'mediaSession' in navigator &&
-        'setPositionState' in (navigator as any).mediaSession
-      ) {
-        (navigator as any).mediaSession.setPositionState({ duration: a.duration || 0, position: a.currentTime || 0, playbackRate: a.playbackRate || 1 });
+      if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && 'setPositionState' in (navigator as any).mediaSession) {
+        (navigator as any).mediaSession.setPositionState({
+          duration: a.duration || 0,
+          position: a.currentTime || 0,
+          playbackRate: a.playbackRate || 1,
+        });
       }
       if (sleepAt && Date.now() >= sleepAt) {
         a.pause();
@@ -712,7 +725,8 @@ export default function Home() {
       setFbBusy(false);
     }
   }
-  // 🔔 تشغيل فوري عند فتح رابط المشاركة /?play=ID
+
+  // تشغيل فوري عند فتح رابط المشاركة /?play=ID
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -739,8 +753,12 @@ export default function Home() {
           const a = audioRef.current;
           if (a) {
             a.load();
-            try { await a.play(); }
-            catch { setIncomingTrack(t); setNeedsTap(true); }
+            try {
+              await a.play();
+            } catch {
+              setIncomingTrack(t);
+              setNeedsTap(true);
+            }
           } else {
             setIncomingTrack(t);
             setNeedsTap(true);
@@ -756,8 +774,20 @@ export default function Home() {
 
   return (
     <div style={{ fontFamily: 'system-ui,-apple-system,Segoe UI,Tahoma', background: '#f8fafc', minHeight: '100vh' }}>
-      <header style={{ position: 'sticky', top: 0, background: '#fff', borderBottom: '1px solid #e5e7eb', zIndex: 10 }}>
-        <div style={{ maxWidth: 960, margin: '0 auto', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+      {/* Header */}
+      <header style={{ position: 'sticky', top: 0, background: '#fff', borderBottom: '1px solid #e5e7eb', zIndex: 12 }}>
+        <div
+          style={{
+            maxWidth: 960,
+            margin: '0 auto',
+            padding: '10px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <img src="/logo.png" width={36} height={36} alt="logo" />
             <b>Nashidona • النسخة التجريبية</b>
@@ -770,28 +800,55 @@ export default function Home() {
             {count ? ` / ${count}` : ''}
           </div>
         </div>
-  {current && (
-    <div className="nowBar">
-      <img src={current.cover_url || '/logo.png'} width={32} height={32} alt="" />
-      <div className="nowMeta">
-        <div className="nowTitle">{current.title}</div>
-        {(current.artist || current.artist_text) && <div className="nowArtist">{current.artist || current.artist_text}</div>}
-      </div>
-      <button
-        className="ctl nowBtn"
-        onClick={() => {
-          const a = audioRef.current;
-          if (!a) return;
-          if (a.paused) a.play(); else a.pause();
-        }}
-        aria-label="تشغيل/إيقاف الآن"
-        title="تشغيل/إيقاف"
-      >⏯</button>
-    </div>
-  )}
 
+        {/* Now playing mini bar */}
+        {current && (
+          <div className="nowBar" style={{ borderTop: '1px solid #f3f4f6', background: '#fafafa' }}>
+            <div
+              style={{
+                maxWidth: 960,
+                margin: '0 auto',
+                padding: '8px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <img
+                src={current.cover_url || '/logo.png'}
+                width={32}
+                height={32}
+                alt=""
+                style={{ borderRadius: 6, objectFit: current.cover_url ? 'cover' : 'contain', background: current.cover_url ? undefined : '#f3f4f6' }}
+              />
+              <div style={{ minWidth: 0, flex: 1, lineHeight: 1.25 }}>
+                <div className="two" style={{ fontWeight: 700, color: '#065f46' }}>
+                  {current.title}
+                </div>
+                {(current.artist || current.artist_text) && (
+                  <div style={{ fontSize: 12, color: '#4b5563' }}>{current.artist || current.artist_text}</div>
+                )}
+              </div>
+              <button
+                className="ctl"
+                onClick={() => {
+                  const a = audioRef.current;
+                  if (!a) return;
+                  a.paused ? a.play() : a.pause();
+                }}
+                title="تشغيل/إيقاف"
+              >
+                ⏯
+              </button>
+              <button className="ctl" onClick={() => playNext(true)} title="التالي">
+                ⏭
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
+      {/* Search + album banner */}
       <section style={{ maxWidth: 960, margin: '20px auto 12px auto', padding: '12px 16px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
           <input
@@ -802,11 +859,12 @@ export default function Home() {
             autoFocus
           />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <button onClick={addAllResultsToQueue} style={{ padding: '8px 10px', border: '1px solid #d1fae5', borderRadius: 8 }}>
-              + إضافة النتائج إلى القائمة
+            <button onClick={addAllResultsToQueue} className="ctl" title="إضافة النتائج إلى القائمة">
+              + أضف النتائج
             </button>
           </div>
         </div>
+
         {singleAlbum && (
           <div
             style={{
@@ -852,6 +910,7 @@ export default function Home() {
         {err && <div style={{ color: '#dc2626', textAlign: 'center', marginTop: 8 }}>{err}</div>}
       </section>
 
+      {/* Results */}
       <main style={{ maxWidth: 960, margin: '0 auto', padding: '0 16px calc(var(--footerH,160px) + var(--kb,0)) 16px' }}>
         <div style={{ display: 'grid', gap: 12 }}>
           {items.map((tr) => {
@@ -897,12 +956,19 @@ export default function Home() {
                     }}
                   />
                   <div className="trackMeta" style={{ minWidth: 0, flex: 1 }}>
-                    <div className="trackTitle" title={tr.title} style={{ color: '#064e3b', fontWeight: 700, lineHeight: 1.35, display: 'flex', alignItems: 'center', gap: 6 }}>
-  <button className="titleBtn" onClick={() => playNow(tr)} aria-label="تشغيل هذا النشيد">{tr.title}</button>
-  {(lyricsMap[String(tr.id)] || tr.has_lyrics) ? (
-    <button className="lyricsIcon" title="كلمات" onClick={() => openLyrics(tr)} aria-label="عرض كلمات النشيد">🎼</button>
-  ) : null}
-</div>
+                    <div
+                      className="trackTitle two"
+                      title={tr.title}
+                      onClick={() => playNow(tr)}
+                      style={{ color: '#064e3b', fontWeight: 700, lineHeight: 1.35, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+                    >
+                      <span style={{ display: 'inline' }}>{tr.title}</span>
+                      {(lyricsMap[String(tr.id)] || tr.has_lyrics) && (
+                        <button className="lyricsIcon" title="كلمات" onClick={(e) => { e.stopPropagation(); openLyrics(tr); }}>
+                          🎼
+                        </button>
+                      )}
+                    </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '6px 0' }}>
                       {tr.class_parent && (
                         <span role="button" onClick={() => setQ(tr.class_parent || '')} className="chip">
@@ -936,38 +1002,32 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  {/* مشاركة (native share أو نسخ الرابط) */}
                   <button
-                    className="btn sm"
+                    className="ctl"
                     title="مشاركة"
                     onClick={() => {
                       try {
                         const origin = typeof window !== 'undefined' ? window.location.origin : 'https://play.nashidona.net';
                         const url = `${origin}/t/${tr.id}`;
-                        const title = tr.title + (tr.artist || tr.artist_text ? ` — ${tr.artist || tr.artist_text}` : '');
                         if (navigator.share) {
                           navigator.share({ url }).catch(() => {});
                         } else {
                           navigator.clipboard?.writeText(url);
                           alert('تم نسخ رابط المشاركة');
                         }
-                      } catch {
-                        // silent
-                      }
+                      } catch {}
                     }}
                   >
                     🔗
                   </button>
-                  {/* تنزيل باسم عربي صحيح عبر /api/d */}
-                  <a href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`} className="btn sm" download title="تنزيل">
+                  <a href={`/api/d/${tr.id}/${encodeURIComponent(baseName)}.mp3`} className="ctl" download title="تنزيل">
                     ⬇
                   </a>
-                  {/* قائمة + تشغيل */}
-                  <button className="btn-queue" onClick={() => addToQueue(tr)} style={{ padding: '8px 10px', border: '1px solid #d1fae5', borderRadius: 8 }}>
-                    + قائمة
+                  <button className="ctl" onClick={() => addToQueue(tr)} title="إضافة للقائمة">
+                    ＋
                   </button>
-                  <button className="btn-play" onClick={() => { playNow(tr); }} style={{ padding: '8px 10px', background: '#059669', color: '#fff', borderRadius: 8 }}>
-                    ▶ تشغيل
+                  <button className="ctl" onClick={() => playNow(tr)} title="تشغيل">
+                    ▶
                   </button>
                 </div>
               </div>
@@ -977,13 +1037,18 @@ export default function Home() {
         <div ref={sentinelRef} style={{ height: 1 }} />
       </main>
 
-      <footer ref={footerRef} style={{ position: 'fixed', bottom: 'var(--kb,0)', left: 0, right: 0, background: '#ffffffee', backdropFilter: 'blur(8px)', borderTop: '1px solid #e5e7eb', zIndex: 40 }}>
+      {/* Footer player */}
+      <footer
+        ref={footerRef}
+        style={{ position: 'fixed', bottom: 'var(--kb,0)', left: 0, right: 0, background: '#ffffffee', backdropFilter: 'blur(8px)', borderTop: '1px solid #e5e7eb', zIndex: 40 }}
+      >
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <button onClick={() => playPrev(true)} title="السابق">
+            <button className="ctl" onClick={() => playPrev(true)} title="السابق">
               ⏮
             </button>
             <button
+              className="ctl"
               onClick={() => {
                 const a = audioRef.current;
                 if (!a) return;
@@ -994,7 +1059,7 @@ export default function Home() {
             >
               ⏯
             </button>
-            <button onClick={() => playNext(true)} title="التالي">
+            <button className="ctl" onClick={() => playNext(true)} title="التالي">
               ⏭
             </button>
           </div>
@@ -1005,12 +1070,13 @@ export default function Home() {
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <button
+              className="ctl"
               onClick={() => setLoop((l) => (l === 'none' ? 'queue' : l === 'queue' ? 'one' : 'none'))}
               title={`نمط التكرار: ${loop === 'none' ? 'بدون' : loop === 'queue' ? 'القائمة' : 'المسار'}`}
             >
               {loop === 'none' ? '⏹' : loop === 'queue' ? '🔁' : '🔂'}
             </button>
-            <button onClick={shuffleQueue} title="خلط القائمة">
+            <button className="ctl" onClick={shuffleQueue} title="خلط القائمة">
               🔀
             </button>
             <select onChange={(e) => { const m = parseInt(e.target.value, 10); if (m > 0) startSleep(m); }} defaultValue="0" title="مؤقّت النوم">
@@ -1020,7 +1086,7 @@ export default function Home() {
               <option value="60">60د</option>
             </select>
           </div>
-          <button onClick={() => setOpen(true)} onTouchEnd={() => setOpen(true)} aria-expanded={open} style={{ padding: '6px 10px', border: '1px solid #d1fae5', borderRadius: 8 }}>
+          <button className="ctl" onClick={() => setOpen(true)} onTouchEnd={() => setOpen(true)} aria-expanded={open} title="فتح القائمة">
             قائمة ({queue.length})
           </button>
           <audio ref={audioRef} src={current ? `/api/stream/${current.id}` : undefined} preload="metadata" />
@@ -1036,12 +1102,13 @@ export default function Home() {
               <b>قائمة التشغيل</b>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <button
+                  className="ctl"
                   onClick={() => setLoop((l) => (l === 'none' ? 'queue' : l === 'queue' ? 'one' : 'none'))}
                   title={`نمط التكرار: ${loop === 'none' ? 'بدون' : loop === 'queue' ? 'القائمة' : 'المسار'}`}
                 >
                   {loop === 'none' ? '⏹' : loop === 'queue' ? '🔁' : '🔂'}
                 </button>
-                <button onClick={shuffleQueue} title="خلط القائمة">
+                <button className="ctl" onClick={shuffleQueue} title="خلط القائمة">
                   🔀
                 </button>
                 <select onChange={(e) => { const m = parseInt(e.target.value, 10); if (m > 0) startSleep(m); }} defaultValue="0" title="مؤقّت النوم">
@@ -1052,75 +1119,72 @@ export default function Home() {
                 </select>
               </div>
               <div style={{ display: 'flex', gap: 8, marginInlineStart: 'auto' }}>
-                <button onClick={() => setOpen(false)}>إغلاق</button>
-                <button onClick={clearQueue} disabled={!queue.length}>
+                <button className="ctl" onClick={() => setOpen(false)}>إغلاق</button>
+                <button className="ctl" onClick={clearQueue} disabled={!queue.length}>
                   تفريغ الكل
                 </button>
               </div>
             </div>
- <div style={{ display: 'grid', gap: 8, maxHeight: '56vh', overflowY: 'auto' }}>
-  {queue.map((tr, i) => {
-    return (
-      <div
-        key={String(tr.id)}
-        draggable
-        onDragStart={(e) => { e.dataTransfer.setData('text/plain', String(i)); }}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
-          const to = i;
-          setQueue((q) => {
-            const c = [...q];
-            const [it] = c.splice(from, 1);
-            c.splice(to, 0, it);
-            return c;
-          });
-        }}
-        className="qRow"
-        style={{
-          border: '1px solid #e5e7eb',
-          borderRadius: 10,
-          padding: '8px',
-          background: current && String(current.id) === String(tr.id) ? '#ecfdf5' : '#fff',
-        }}
-      >
-        {/* زر تشغيل كبير */}
-        <button
-          className="qPlay ctl"
-          onClick={() => { setCurrent(tr); }}
-          aria-label="تشغيل"
-          title="تشغيل"
-        >
-          ▶
-        </button>
 
-        {/* العنوان (سطران) — بالنقر يشغّل */}
-        <button
-          className="qTitle"
-          onClick={() => { setCurrent(tr); }}
-          title={tr.title}
-          aria-label={`تشغيل: ${tr.title}`}
-        >
-          {tr.title}
-        </button>
+            <div style={{ display: 'grid', gap: 8, maxHeight: '56vh', overflowY: 'auto' }}>
+              {queue.map((tr, i) => (
+                <div
+                  key={String(tr.id)}
+                  draggable
+                  onDragStart={(e) => { e.dataTransfer.setData('text/plain', String(i)); }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                    const to = i;
+                    setQueue((q) => {
+                      const c = [...q];
+                      const [it] = c.splice(from, 1);
+                      c.splice(to, 0, it);
+                      return c;
+                    });
+                  }}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto',
+                    alignItems: 'center',
+                    gap: 8,
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 10,
+                    padding: '8px 10px',
+                    background: current && String(current.id) === String(tr.id) ? '#ecfdf5' : '#fff',
+                  }}
+                >
+                  {/* العنوان قابل للنقر للتشغيل — سطران */}
+                  <div
+                    className="two"
+                    title={tr.title}
+                    onClick={() => playNow(tr)}
+                    style={{ cursor: 'pointer', minWidth: 0 }}
+                  >
+                    {tr.title}
+                  </div>
 
-        {/* بقية الأزرار */}
-        <div className="qActions">
-          <button className="qAct" onClick={() => move(tr.id, -1)} disabled={i === 0} title="أعلى" aria-label="نقل لأعلى">⬆</button>
-          <button className="qAct" onClick={() => move(tr.id, +1)} disabled={i === queue.length - 1} title="أسفل" aria-label="نقل لأسفل">⬇</button>
-          <button className="qAct" onClick={() => removeFromQueue(tr.id)} title="حذف" aria-label="حذف">✕</button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="ctl" onClick={() => move(tr.id, -1)} disabled={i === 0} title="أعلى">
+                      ⬆
+                    </button>
+                    <button className="ctl" onClick={() => move(tr.id, +1)} disabled={i === queue.length - 1} title="أسفل">
+                      ⬇
+                    </button>
+                    <button className="ctl" onClick={() => removeFromQueue(tr.id)} title="حذف">
+                      ✕
+                    </button>
+                    <button className="ctl" onClick={() => playNow(tr)} title="تشغيل">
+                      ▶
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {!queue.length && <div style={{ color: '#6b7280' }}>لا يوجد عناصر بعد. أضف من النتائج أعلاه.</div>}
+            </div>
+          </div>
         </div>
-      </div>
-    );
-  })}
-  {!queue.length && (
-    <div style={{ color: '#6b7280' }}>
-      لا يوجد عناصر بعد. أضف من النتائج أعلاه.
-    </div>
-  )}
-</div>
-</div>
-    
+      )}
 
       {/* لوحة كلمات النشيد */}
       {showLyrics.open && (
@@ -1129,7 +1193,7 @@ export default function Home() {
             <div className="handle" />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <b>كلمات: {showLyrics.title || ''}</b>
-              <button onClick={() => setShowLyrics({ open: false })}>إغلاق</button>
+              <button className="ctl" onClick={() => setShowLyrics({ open: false })}>إغلاق</button>
             </div>
             <div style={{ maxHeight: '56vh', overflowY: 'auto', whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
               {showLyrics.text || '—'}
@@ -1138,7 +1202,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* ✅ زر تشغيل واحد إذا مُنع التشغيل التلقائي (موبايل) */}
+      {/* زر تشغيل عند منع التشغيل التلقائي */}
       {needsTap && (
         <div className="sheet" onClick={() => {}} style={{ background: 'rgba(0,0,0,0.55)' }}>
           <div className="panel" style={{ textAlign: 'center' }}>
@@ -1151,13 +1215,12 @@ export default function Home() {
             )}
             <div style={{ color: '#374151', fontSize: 14, marginBottom: 12 }}>اضغط الزر للتشغيل</div>
             <button
+              className="ctl"
               onClick={() => {
                 if (incomingTrack) playNow(incomingTrack);
-                const a = audioRef.current as HTMLAudioElement | null;
-                a?.play().catch(() => {});
+                audioRef.current?.play().catch(() => {});
                 setNeedsTap(false);
               }}
-              style={{ padding: '12px 14px', background: '#059669', color: '#fff', borderRadius: 10, border: 'none' }}
             >
               ▶ اضغط للتشغيل
             </button>
@@ -1175,12 +1238,12 @@ export default function Home() {
             <div className="handle" />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <b>إرسال ملاحظة</b>
-              <button onClick={() => setFbOpen(false)}>إغلاق</button>
+              <button className="ctl" onClick={() => setFbOpen(false)}>إغلاق</button>
             </div>
             <div style={{ display: 'grid', gap: 8 }}>
               <textarea value={fbMsg} onChange={(e) => setFbMsg(e.target.value)} rows={5} placeholder="اكتب ملاحظتك أو المشكلة التي واجهتك..." style={{ width: '100%', padding: 10, border: '1px solid #e5e7eb', borderRadius: 8 }} />
               <input value={fbEmail} onChange={(e) => setFbEmail(e.target.value)} placeholder="بريدك (اختياري)" style={{ padding: 10, border: '1px solid #e5e7eb', borderRadius: 8 }} />
-              <button disabled={fbBusy} onClick={submitFeedback} style={{ padding: '10px 12px', background: '#059669', color: '#fff', borderRadius: 8 }}>
+              <button disabled={fbBusy} onClick={submitFeedback} className="ctl">
                 {fbBusy ? 'جارٍ الإرسال...' : 'إرسال'}
               </button>
               {fbOk && <div style={{ fontSize: 13, color: '#065f46' }}>{fbOk}</div>}
@@ -1203,86 +1266,32 @@ export default function Home() {
         .trackCard { width:100%; }
         .trackCard > * { min-width:0; }
         .trackRow > * { min-width:0; }
-        .trackTitle, .trackSub { white-space: normal; word-break: break-word; overflow-wrap: anywhere; display: block; }
         .lyricsIcon { border:1px solid #e5e7eb; border-radius:6px; padding:2px 6px; font-size:12px; background:#fff; cursor:pointer; }
+
+        /* زر تحكم كبير للمس */
+        .ctl { min-width:44px; min-height:44px; padding:8px 10px; font-size:18px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; }
+        .ctl:hover { background:#f8fafc; }
+        .ctl:active { transform: scale(.98); }
+
+        /* عنوان على سطرين كحدّ أقصى */
+        .two{
+          display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
+          overflow:hidden; text-overflow:ellipsis; white-space:normal;
+        }
 
         .fbBtn { padding:4px 8px; border:1px solid #e5e7eb; background:#fff; border-radius:8px; font-size:12px; }
         .fbFab { position: fixed; left: 12px; bottom: calc(var(--kb,0) + var(--footerH,160px) + 12px); z-index: 50; border:1px solid #e5e7eb; background:#fff; width:42px; height:42px; border-radius:999px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.12); }
 
-        .btn.sm { padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 8px; background:#fff; }
-        .btn.sm:hover { background:#f8fafc; }
-
         @media (max-width: 520px) {
           .trackCard { flex-direction: column; align-items: stretch; width:100%; }
           .actions { width:100%; display:grid !important; grid-template-columns: repeat(4, auto); gap:8px; align-items:center; justify-content:flex-start; }
-          .btn-play { width:100%; grid-column: 1 / -1; }
           header .stats { display:none; }
         }
+
         .sheet{ position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.25); }
         .sheet .panel{ position: absolute; left:0; right:0; bottom:0; background:#fff; border-top-left-radius:16px; border-top-right-radius:16px; padding: 10px; box-shadow:0 -10px 30px rgba(0,0,0,.15); padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
         .sheet .handle{ width:44px; height:5px; background:#e5e7eb; border-radius:999px; margin:6px auto 10px; }
-      
-  /* === جديد: لمس مريح للأزرار الأساسية === */
-  .ctl { min-width: 44px; min-height: 44px; padding: 8px 10px; font-size: 18px; border: 1px solid #e5e7eb; border-radius: 10px; background:#fff; }
-  .ctl:active { transform: scale(.98); }
-
-  /* عنوان قابل للنقر في بطاقة النتائج — سطران */
-  .titleBtn{
-    all: unset;
-    cursor: pointer;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    max-width: 100%;
-    color: #064e3b;
-    font-weight: 700;
-    line-height: 1.35;
-  }
-
-  /* صف قائمة التشغيل (Grid) */
-  .qRow{ display:grid; grid-template-columns: 48px 1fr auto; align-items:center; gap:8px; }
-  .qPlay{ font-size:18px; }
-  .qActions{ display:flex; gap:6px; }
-  .qAct{ min-width:40px; min-height:40px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; }
-  .qAct:disabled{ opacity:.5; cursor:not-allowed }
-
-  /* عنوان العنصر داخل قائمة التشغيل — سطران بالنقر للتشغيل */
-  .qTitle{
-    all: unset;
-    cursor: pointer;
-    text-align: start;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    line-height: 1.4;
-    font-size: 14px;
-  }
-
-  /* شريط "يشغَّل الآن" داخل الهيدر */
-  .nowBar{
-    max-width: 960px;
-    margin: 0 auto 8px;
-    padding: 6px 12px;
-    display: grid;
-    grid-template-columns: 36px 1fr auto;
-    gap: 8px;
-    align-items: center;
-  }
-  .nowBar img{ border-radius:8px; object-fit:cover; background:#f3f4f6; }
-  .nowMeta{ min-width: 0 }
-  .nowTitle{ font-weight:700; color:#065f46; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .nowArtist{ font-size:12px; color:#374151; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .nowBtn{ font-size:18px; }
-
-  @media (max-width: 520px){
-    .btn.sm, .btn-queue, .btn-play { min-height: 44px; }
-    .lyricsIcon{ min-height: 32px; }
-    .actions { width:100%; display:grid !important; grid-template-columns: repeat(4, minmax(44px, auto)); gap:8px; align-items:center; justify-content:flex-start; }
-    input[type="range"]{ height: 26px; }
-  }
-`}</style>
+      `}</style>
     </div>
   );
 }
