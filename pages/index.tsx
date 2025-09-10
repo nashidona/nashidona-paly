@@ -216,7 +216,7 @@ export default function Home() {
     }
   }
 
-  // أول تحميل: عشوائي ثم ضبط العد الحقيقي
+  // أول تحميل
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -261,7 +261,7 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dq]);
 
-  // ✅ تحضير توفر الكلمات لعناصر الصفحة الأولى
+  // تحضير توفر الكلمات
   useEffect(() => {
     if (!items.length) return;
     const sample = items.slice(0, 36).filter((it) => lyricsMap[String(it.id)] === undefined);
@@ -348,7 +348,7 @@ export default function Home() {
     };
   }, []);
 
-  // ===== استرجاع الحالة من التخزين المحلي =====
+  // استرجاع الحالة من التخزين المحلي
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -371,7 +371,7 @@ export default function Home() {
     setHydrated(true);
   }, []);
 
-  // ===== وظائف التشغيل =====
+  // وظائف التشغيل
   function playNow(tr: Track) {
     setCurrent(tr);
     setQueue((q) => (q.find((x) => String(x.id) === String(tr.id)) ? q : [tr, ...q]));
