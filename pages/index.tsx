@@ -195,6 +195,35 @@ export default function Home() {
       const k = String(x.id);
       if (seen.has(k)) return false;
       seen.add(k);
+
+        const singleAlbum = React.useMemo(() => {
+    type SA = { title: string; year: string; cover: string } | null;
+    if (!items.length) return null as SA;
+
+    const uniq = Array.from(new Set(items.map(x => (x.album || '').trim()))).filter(Boolean) as string[];
+    if (uniq.length === 1) {
+      const chosen = uniq[0];
+      const sample = items.find(x => (x.album || '').trim() === chosen) || items[0];
+      return {
+        title: chosen,
+        year: (sample.year || '').toString(),
+        cover: sample.cover_url || '/logo.png',
+      } as SA;
+    }
+    return null as SA;
+  }, [items]);
+  useEffect(() => {
+    let cancelled = false;
+    if (singleAlbum?.title) {
+      fetch(`/api/album?title=${encodeURIComponent(singleAlbum.title)}`)
+        .then(r => r.json())
+        .then(j => { if (!cancelled) setAlbumInfo((j?.info || '').trim()); })
+        .catch(() => { if (!cancelled) setAlbumInfo(''); });
+    } else {
+      setAlbumInfo('');
+    }
+    return () => { cancelled = true; };
+  }, [singleAlbum?.title]);
       return true;
     });
   }
