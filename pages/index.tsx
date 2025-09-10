@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-
 // ===== Types =====
 export type Track = {
   id: number | string;
