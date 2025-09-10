@@ -1058,54 +1058,68 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            <div style={{ display: 'grid', gap: 8, maxHeight: '56vh', overflowY: 'auto' }}>
-              {queue.map((tr, i) => (
-                <div
-  key={String(tr.id)}
-  draggable
-  onDragStart={(e) => { e.dataTransfer.setData('text/plain', String(i)); }}
-  onDragOver={(e) => e.preventDefault()}
-  onDrop={(e) => {
-    const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
-    const to = i;
-    setQueue((q) => {
-      const c = [...q];
-      const [it] = c.splice(from, 1);
-      c.splice(to, 0, it);
-      return c;
-    });
-  }}
-  className="qRow"
-  style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: '8px', background: current && String(current.id) === String(tr.id) ? '#ecfdf5' : '#fff' }}
->
-  <button className="qPlay ctl" onClick={() => setCurrent(tr)} aria-label="تشغيل">▶</button>
-  <button className="qTitle" onClick={() => setCurrent(tr)} title={tr.title} aria-label={`تشغيل: ${tr.title}`}>{tr.title}</button>
-  <div className="qActions">
-    <button className="qAct" onClick={() => move(tr.id, -1)} disabled={i === 0} title="أعلى" aria-label="نقل لأعلى">⬆</button>
-    <button className="qAct" onClick={() => move(tr.id, +1)} disabled={i === queue.length - 1} title="أسفل" aria-label="نقل لأسفل">⬇</button>
-    <button className="qAct" onClick={() => removeFromQueue(tr.id)} title="حذف" aria-label="حذف">✕</button>
-  </div>
-</div>
-<div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => move(tr.id, -1)} disabled={i === 0} title="أعلى">
-                      ⬆
-                    </button>
-                    <button onClick={() => move(tr.id, +1)} disabled={i === queue.length - 1} title="أسفل">
-                      ⬇
-                    </button>
-                    <button onClick={() => removeFromQueue(tr.id)} title="حذف">
-                      ✕
-                    </button>
-                    <button onClick={() => { setCurrent(tr); }} title="تشغيل">
-                      ▶
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {!queue.length && <div style={{ color: '#6b7280' }}>لا يوجد عناصر بعد. أضف من النتائج أعلاه.</div>}
-            </div>
-          </div>
+ <div style={{ display: 'grid', gap: 8, maxHeight: '56vh', overflowY: 'auto' }}>
+  {queue.map((tr, i) => {
+    return (
+      <div
+        key={String(tr.id)}
+        draggable
+        onDragStart={(e) => { e.dataTransfer.setData('text/plain', String(i)); }}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+          const to = i;
+          setQueue((q) => {
+            const c = [...q];
+            const [it] = c.splice(from, 1);
+            c.splice(to, 0, it);
+            return c;
+          });
+        }}
+        className="qRow"
+        style={{
+          border: '1px solid #e5e7eb',
+          borderRadius: 10,
+          padding: '8px',
+          background: current && String(current.id) === String(tr.id) ? '#ecfdf5' : '#fff',
+        }}
+      >
+        {/* زر تشغيل كبير */}
+        <button
+          className="qPlay ctl"
+          onClick={() => { setCurrent(tr); }}
+          aria-label="تشغيل"
+          title="تشغيل"
+        >
+          ▶
+        </button>
+
+        {/* العنوان (سطران) — بالنقر يشغّل */}
+        <button
+          className="qTitle"
+          onClick={() => { setCurrent(tr); }}
+          title={tr.title}
+          aria-label={`تشغيل: ${tr.title}`}
+        >
+          {tr.title}
+        </button>
+
+        {/* بقية الأزرار */}
+        <div className="qActions">
+          <button className="qAct" onClick={() => move(tr.id, -1)} disabled={i === 0} title="أعلى" aria-label="نقل لأعلى">⬆</button>
+          <button className="qAct" onClick={() => move(tr.id, +1)} disabled={i === queue.length - 1} title="أسفل" aria-label="نقل لأسفل">⬇</button>
+          <button className="qAct" onClick={() => removeFromQueue(tr.id)} title="حذف" aria-label="حذف">✕</button>
         </div>
+      </div>
+    );
+  })}
+  {!queue.length && (
+    <div style={{ color: '#6b7280' }}>
+      لا يوجد عناصر بعد. أضف من النتائج أعلاه.
+    </div>
+  )}
+</div>
+</div>
       )}
 
       {/* لوحة كلمات النشيد */}
