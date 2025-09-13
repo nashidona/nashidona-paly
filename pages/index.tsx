@@ -104,7 +104,24 @@ export default function Home() {
   const [q, setQ] = useState('');
   const dq = useDebounced(q, 350);
 
-  // نتائج/ترقيم
+  
+
+  // ——— إظهار/إخفاء أناشيد الأطفال (افتراضيًا: مخفية) ———
+  const [showKids, setShowKids] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const v = localStorage.getItem('nd_show_kids');
+      if (v === '1') setShowKids(true);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try { localStorage.setItem('nd_show_kids', showKids ? '1' : '0'); } catch {}
+  }, [showKids]);
+// نتائج/ترقيم
   const [items, setItems] = useState<Track[]>([]);
   const [count, setCount] = useState<number>(0);
   const [offset, setOffset] = useState(0);
@@ -212,7 +229,7 @@ export default function Home() {
     setLoading(true);
     setErr('');
     try {
-      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${newOffset}`);
+      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${newOffset}&include_kids=${showKids?1:0}&exclude_kids=${showKids?0:1}`);
       if (!r.ok) throw new Error(String(r.status));
       const j = await r.json();
       const page: Track[] = dedup(j.items || []);
@@ -239,7 +256,7 @@ export default function Home() {
       if (dq.trim() === '') {
         let initialRandomCount = 0;
         try {
-          const r = await fetch(`/api/random?limit=60`);
+          const r = await fetch(`/api/random?limit=60&include_kids=${showKids?1:0}&exclude_kids=${showKids?0:1}`);
           const j = await r.json();
           const arr: Track[] = Array.isArray(j.items) ? j.items : [];
           initialRandomCount = arr.length;
@@ -252,7 +269,7 @@ export default function Home() {
           }
         }
         try {
-          const r2 = await fetch(`/api/search?q=&limit=1&offset=0`);
+          const r2 = await fetch(`/api/search?q=&limit=1&offset=0&include_kids=${showKids?1:0}&exclude_kids=${showKids?0:1}`);
           const j2 = await r2.json();
           const total = j2?.count || 0;
           if (!cancelled) {
@@ -270,7 +287,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [dq]);
+  }, [dq, showKids]);
 
   // تحضير توفر الكلمات
   useEffect(() => {
@@ -651,7 +668,7 @@ export default function Home() {
     const maxLoops = 50;
 
     for (let loop = 0; all.length < cap && loop < maxLoops; loop++) {
-      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=${PAGE}&offset=${nextOffset}`);
+      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=${PAGE}&offset=${nextOffset}&include_kids=${showKids?1:0}&exclude_kids=${showKids?0:1}`);
       if (!r.ok) break;
       const j = await r.json();
       const page: Track[] = Array.isArray(j.items) ? j.items : [];
@@ -903,6 +920,10 @@ export default function Home() {
               + أضف النتائج
             </button>
           </div>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#374151', marginTop: 6 }}>
+            <input type="checkbox" checked={showKids} onChange={(e)=>setShowKids(e.target.checked)} />
+            <span>إظهار أناشيد الأطفال</span>
+          </label>
         </div>
 
         {singleAlbum && (
