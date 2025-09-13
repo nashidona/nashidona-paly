@@ -921,7 +921,7 @@ export default function Home() {
             </button>         
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#374151', marginTop: 6 }}>
             <input type="checkbox" checked={showKids} onChange={(e)=>setShowKids(e.target.checked)} />
-            <span تضمين أناشيد الأطفال في البحث</span>
+            <span> تضمين أناشيد الأطفال في البحث</span>
           </label>
         </div>
        </div>
