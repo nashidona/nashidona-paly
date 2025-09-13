@@ -918,14 +918,13 @@ export default function Home() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
             <button onClick={addAllResultsToQueue} className="ctl" title="إضافة النتائج إلى القائمة">
               + أضف النتائج
-            </button>
-          </div>
+            </button>         
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#374151', marginTop: 6 }}>
             <input type="checkbox" checked={showKids} onChange={(e)=>setShowKids(e.target.checked)} />
-            <span>إظهار أناشيد الأطفال</span>
+            <span تضمين أناشيد الأطفال في البحث</span>
           </label>
         </div>
-
+       </div>
         {singleAlbum && (
           <div
             style={{
