@@ -106,14 +106,14 @@ export default function Home() {
 
   
 
-  // ——— إخفاء/إظهار أناشيد الأطفال (افتراضيًا: مخفية) ———
+  // ——— إخفاء أناشيد الأطفال (افتراضيًا: مخفية) ———
   const [hideKids, setHideKids] = useState(true);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const raw = localStorage.getItem('nd_hide_kids');
-      if (raw === '0') setHideKids(false);
+      const v = localStorage.getItem('nd_hide_kids');
+      if (v === '0') setHideKids(false); // 0 => لا تخفِ الأطفال
     } catch {}
   }, []);
 
@@ -668,7 +668,7 @@ export default function Home() {
     const maxLoops = 50;
 
     for (let loop = 0; all.length < cap && loop < maxLoops; loop++) {
-      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=${PAGE}&offset=${nextOffset}`);
+      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=${PAGE}&offset=${nextOffset}&exclude_kids=\${hideKids?1:0}`);
       if (!r.ok) break;
       const j = await r.json();
       const page: Track[] = Array.isArray(j.items) ? j.items : [];
@@ -920,6 +920,10 @@ export default function Home() {
               + أضف النتائج
             </button>
           </div>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#374151', marginTop: 6 }}>
+            <input type="checkbox" checked={hideKids} onChange={(e)=>setHideKids(e.target.checked)} />
+            <span>إخفاء أناشيد الأطفال</span>
+          </label>
         </div>
 
         {singleAlbum && (
