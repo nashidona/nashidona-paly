@@ -1,3 +1,4 @@
+// pages/api/search.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
@@ -11,16 +12,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const limit  = Math.min(parseInt(String(req.query.limit ?? '60')) || 60, 1000);
     const offset = Math.max(parseInt(String(req.query.offset ?? '0')) || 0, 0);
 
-    // الصفحة
+    // NEW: kids filter (default ON)
+    const exParam = String(req.query.exclude_kids ?? '1').toLowerCase();
+    const exclude_kids = exParam === '1' || exParam === 'true' || exParam === 'yes';
+
+    // Page
     const { data: rows, error: err1 } = await supabase.rpc('global_search', {
       q,
-      limit_n: limit,   // ← مهم
-      offset_n: offset, // ← مهم
+      limit_n: limit,
+      offset_n: offset,
+      exclude_kids, // NEW
     });
     if (err1) throw err1;
 
-    // العدّ
-    const { data: totalArr, error: err2 } = await supabase.rpc('global_search_count', { q });
+    // Count
+    const { data: totalArr, error: err2 } = await supabase.rpc('global_search_count', { q, exclude_kids });
     if (err2) throw err2;
 
     const count =
