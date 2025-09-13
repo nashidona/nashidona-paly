@@ -106,20 +106,21 @@ export default function Home() {
 
   
 
-  // ——— إظهار/إخفاء أناشيد الأطفال (افتراضيًا: مخفية) ———
-  const [showKids, setShowKids] = useState(false);
+  // ——— إخفاء/إظهار أناشيد الأطفال (افتراضيًا: مخفية) ———
+  const [hideKids, setHideKids] = useState(true);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const v = localStorage.getItem('nd_showKids');
-    setShowKids(v === '1');
+    try {
+      const raw = localStorage.getItem('nd_hide_kids');
+      if (raw === '0') setHideKids(false);
+    } catch {}
   }, []);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('nd_showKids', showKids ? '1' : '0');
-    }
-  }, [showKids]);
+    if (typeof window === 'undefined') return;
+    try { localStorage.setItem('nd_hide_kids', hideKids ? '1' : '0'); } catch {}
+  }, [hideKids]);
 // نتائج/ترقيم
   const [items, setItems] = useState<Track[]>([]);
   const [count, setCount] = useState<number>(0);
@@ -228,7 +229,7 @@ export default function Home() {
     setLoading(true);
     setErr('');
     try {
-      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${newOffset}&exclude_kids=\${showKids?0:1}&kids=\${showKids?1:0}&include_kids=\${showKids?1:0}`);
+      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${newOffset}&exclude_kids=\${hideKids?1:0}`);
       if (!r.ok) throw new Error(String(r.status));
       const j = await r.json();
       const page: Track[] = dedup(j.items || []);
@@ -255,7 +256,7 @@ export default function Home() {
       if (dq.trim() === '') {
         let initialRandomCount = 0;
         try {
-          const r = await fetch(`/api/random?limit=60&exclude_kids=\${showKids?0:1}&kids=\${showKids?1:0}&include_kids=\${showKids?1:0}`);
+          const r = await fetch(`/api/random?limit=60&exclude_kids=\${hideKids?1:0}`);
           const j = await r.json();
           const arr: Track[] = Array.isArray(j.items) ? j.items : [];
           initialRandomCount = arr.length;
@@ -268,7 +269,7 @@ export default function Home() {
           }
         }
         try {
-          const r2 = await fetch(`/api/search?q=&limit=1&offset=0&exclude_kids=\${showKids?0:1}&kids=\${showKids?1:0}&include_kids=\${showKids?1:0}`);
+          const r2 = await fetch(`/api/search?q=&limit=1&offset=0&exclude_kids=\${hideKids?1:0}`);
           const j2 = await r2.json();
           const total = j2?.count || 0;
           if (!cancelled) {
@@ -286,7 +287,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [dq, showKids]);
+  }, [dq, hideKids]);
 
   // تحضير توفر الكلمات
   useEffect(() => {
@@ -667,7 +668,7 @@ export default function Home() {
     const maxLoops = 50;
 
     for (let loop = 0; all.length < cap && loop < maxLoops; loop++) {
-      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=${PAGE}&offset=${nextOffset}&exclude_kids=\${showKids?0:1}&kids=\${showKids?1:0}&include_kids=\${showKids?1:0}`);
+      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=${PAGE}&offset=${nextOffset}`);
       if (!r.ok) break;
       const j = await r.json();
       const page: Track[] = Array.isArray(j.items) ? j.items : [];
