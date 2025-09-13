@@ -142,7 +142,7 @@ export default function Home() {
   // توفر كلمات
   const [lyricsMap, setLyricsMap] = useState<Record<string, boolean>>({});
 
-  // صوت (حجم) — يحفظ محليًا
+  // صوت (حجم)
   const [vol, setVol] = useState<number>(1);
 
   // مراجع
@@ -164,6 +164,10 @@ export default function Home() {
   const MAX_RETRIES = 2;
   const STUCK_MS = 15000;
   const CHECK_EVERY = 4000;
+
+  // === حالة السحب في قائمة التشغيل ===
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
 
   function startWatchdog(a: HTMLAudioElement | null) {
     stopWatchdog();
@@ -400,16 +404,13 @@ export default function Home() {
     setQueue((q) => q.filter((x) => String(x.id) !== String(id)));
     if (current && String(current.id) === String(id)) setTimeout(() => playNext(true), 0);
   }
-  function move(id: Track['id'], dir: -1 | 1) {
+  function moveByIndex(from: number, to: number) {
     setQueue((q) => {
-      const i = q.findIndex((x) => String(x.id) === String(id));
-      if (i < 0) return q;
-      const j = i + dir;
-      if (j < 0 || j >= q.length) return q;
+      if (from < 0 || from >= q.length) return q;
       const c = [...q];
-      const tmp = c[i];
-      c[i] = c[j];
-      c[j] = tmp;
+      const [it] = c.splice(from, 1);
+      const dest = Math.max(0, Math.min(to, c.length));
+      c.splice(dest, 0, it);
       return c;
     });
   }
@@ -1235,85 +1236,125 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Placeholder للسقوط عند نهاية القائمة */}
+            {dragFrom !== null && dragOver === queue.length && <div className="dropSlot" />}
+
             <div style={{ display: 'grid', gap: 8, maxHeight: '56vh', overflowY: 'auto' }}>
               {queue.map((tr, i) => {
-                // إيماءات سحب سريعة
-                let startX = 0;
-                const handleStart = (e: React.TouchEvent<HTMLDivElement>) => {
-                  startX = e.changedTouches[0].clientX;
+                // سلوك سحب/إفلات
+                const startSwipe = { x: 0, y: 0 };
+                const onTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+                  startSwipe.x = e.changedTouches[0].clientX;
+                  startSwipe.y = e.changedTouches[0].clientY;
                 };
-                const handleEnd = (e: React.TouchEvent<HTMLDivElement>) => {
-                  const dx = e.changedTouches[0].clientX - startX;
+                const onTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+                  // حركات سريعة: يمين للتشغيل، يسار للحذف — مع عتبات لتقليل الأخطاء
+                  const dx = e.changedTouches[0].clientX - startSwipe.x;
+                  const dy = e.changedTouches[0].clientY - startSwipe.y;
+                  if (Math.abs(dx) < 42 || Math.abs(dx) <= Math.abs(dy)) return;
+                  try { (navigator as any)?.vibrate?.(10); } catch {}
                   if (dx > 42) {
-                    try {
-                      (navigator as any)?.vibrate?.(10);
-                    } catch {}
                     playNow(tr);
                   } else if (dx < -42) {
-                    try {
-                      (navigator as any)?.vibrate?.(10);
-                    } catch {}
                     removeFromQueue(tr.id);
                   }
                 };
+
                 const isCur = current && String(current.id) === String(tr.id);
+
                 return (
-                  <div
-                    key={String(tr.id)}
-                    ref={(el) => {
-                      queueRefs.current[String(tr.id)] = el;
-                    }}
-                    onTouchStart={handleStart}
-                    onTouchEnd={handleEnd}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/plain', String(i));
-                    }}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
-                      const to = i;
-                      setQueue((q) => {
-                        const c = [...q];
-                        const [it] = c.splice(from, 1);
-                        c.splice(to, 0, it);
-                        return c;
-                      });
-                    }}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr auto',
-                      alignItems: 'center',
-                      gap: 8,
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 10,
-                      padding: '8px 10px',
-                      background: isCur ? '#ecfdf5' : '#fff',
-                    }}
-                  >
-                    <div className="two" title={tr.title} onClick={() => playNow(tr)} style={{ cursor: 'pointer', minWidth: 0 }}>
-                      {isCur && <span aria-hidden>▶ </span>}
-                      {tr.title}
+                  <React.Fragment key={String(tr.id)}>
+                    {/* Placeholder قبل العنصر عند التحويم أثناء السحب */}
+                    {dragFrom !== null && dragOver === i && <div className="dropSlot" />}
+                    <div
+                      ref={(el) => {
+                        queueRefs.current[String(tr.id)] = el;
+                      }}
+                      onTouchStart={onTouchStart}
+                      onTouchEnd={onTouchEnd}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOver(i);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const from = dragFrom ?? parseInt(e.dataTransfer.getData('text/plain') || '-1', 10);
+                        if (Number.isFinite(from)) moveByIndex(from, i);
+                        setDragFrom(null);
+                        setDragOver(null);
+                      }}
+                      className={'queueItem' + (isCur ? ' cur' : '') + (dragFrom === i ? ' dragging' : '')}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'auto 1fr auto',
+                        alignItems: 'center',
+                        gap: 8,
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 10,
+                        padding: '8px 10px',
+                        background: isCur ? '#ecfdf5' : '#fff',
+                      }}
+                    >
+                      {/* قبضة السحب فقط هي القابلة للسحب */}
+                      <span
+                        className="dragHandle"
+                        title="اسحب لإعادة الترتيب"
+                        draggable
+                        onDragStart={(e) => {
+                          setDragFrom(i);
+                          setDragOver(i);
+                          e.dataTransfer.setData('text/plain', String(i));
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
+                        onDragEnd={() => {
+                          setDragFrom(null);
+                          setDragOver(null);
+                        }}
+                      >
+                        ⠿
+                      </span>
+
+                      {/* العنوان — غير قابل للتشغيل بالضغط لتجنّب تشغيل بالخطأ أثناء التمرير */}
+                      <div className="two" title={tr.title} style={{ minWidth: 0 }}>
+                        {isCur && <span aria-hidden>▶ </span>}
+                        {tr.title}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {/* أزلنا ↑ ↓ */}
+                        <button className="ctl" onClick={() => removeFromQueue(tr.id)} title="حذف">
+                          ✕
+                        </button>
+                        <button className="ctl" onClick={() => playNow(tr)} title="تشغيل">
+                          ▶
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="ctl" onClick={() => move(tr.id, -1)} disabled={i === 0} title="أعلى">
-                        ⬆
-                      </button>
-                      <button className="ctl" onClick={() => move(tr.id, +1)} disabled={i === queue.length - 1} title="أسفل">
-                        ⬇
-                      </button>
-                      <button className="ctl" onClick={() => removeFromQueue(tr.id)} title="حذف">
-                        ✕
-                      </button>
-                      <button className="ctl" onClick={() => playNow(tr)} title="تشغيل">
-                        ▶
-                      </button>
-                    </div>
-                  </div>
+                  </React.Fragment>
                 );
               })}
               {!queue.length && <div style={{ color: '#6b7280' }}>لا يوجد عناصر بعد. أضف من النتائج أعلاه.</div>}
             </div>
+
+            {/* Drop عند نهاية القائمة */}
+            {dragFrom !== null && (
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(queue.length);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const from = dragFrom ?? parseInt(e.dataTransfer.getData('text/plain') || '-1', 10);
+                  if (Number.isFinite(from)) moveByIndex(from, queue.length);
+                  setDragFrom(null);
+                  setDragOver(null);
+                }}
+                style={{ padding: '6px 0' }}
+              >
+                {dragOver === queue.length && <div className="dropSlot" />}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1419,6 +1460,18 @@ export default function Home() {
           .trackCard { flex-direction: column; align-items: stretch; width:100%; }
           .actions { width:100%; display:grid !important; grid-template-columns: repeat(4, auto); gap:8px; align-items:center; justify-content:flex-start; }
           header .stats { display:none; }
+        }
+
+        /* سحب/إفلات داخل قائمة التشغيل */
+        .dragHandle{ cursor:grab; user-select:none; padding:6px 8px; border:1px dashed #e5e7eb; border-radius:8px; background:#fafafa; }
+        .dragHandle:active{ cursor:grabbing; }
+        .queueItem.dragging{ transform: scale(.99); box-shadow: 0 6px 18px rgba(0,0,0,.08); }
+        .queueItem.cur{ border-left: 4px solid #10b981; padding-left: 6px; }
+
+        .dropSlot{
+          height: 10px; border:2px dashed #a7f3d0; border-radius:8px;
+          margin: 6px 0;
+          background: repeating-linear-gradient(90deg, rgba(16,185,129,.08), rgba(16,185,129,.08) 8px, rgba(16,185,129,.0) 8px, rgba(16,185,129,.0) 16px);
         }
 
         .sheet{ position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.25); }
