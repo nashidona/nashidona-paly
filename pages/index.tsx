@@ -919,12 +919,11 @@ export default function Home() {
             <button onClick={addAllResultsToQueue} className="ctl" title="إضافة النتائج إلى القائمة">
               + أضف النتائج
             </button>
-          
+          </div>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#374151', marginTop: 6 }}>
             <input type="checkbox" checked={hideKids} onChange={(e)=>setHideKids(e.target.checked)} />
             <span>إخفاء أناشيد الأطفال</span>
           </label>
-        </div>
         </div>
 
         {singleAlbum && (
