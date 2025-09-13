@@ -1,3 +1,4 @@
+// pages/api/random.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
@@ -9,8 +10,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? '60')) || 60, 120);
 
-    // كم عنصر عندنا إجمالاً؟
-    const { data: totalArr, error: cErr } = await supabase.rpc('global_search_count', { q: '' });
+    // NEW: kids filter (default ON)
+    const exParam = String(req.query.exclude_kids ?? '1').toLowerCase();
+    const exclude_kids = exParam === '1' || exParam === 'true' || exParam === 'yes';
+
+    // How many rows total?
+    const { data: totalArr, error: cErr } = await supabase.rpc('global_search_count', { q: '', exclude_kids });
     if (cErr) throw cErr;
     const total =
       Array.isArray(totalArr)
@@ -24,6 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       q: '',
       limit_n: limit,
       offset_n: offset,
+      exclude_kids, // NEW
     });
     if (error) throw error;
 
