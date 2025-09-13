@@ -104,7 +104,25 @@ export default function Home() {
   const [q, setQ] = useState('');
   const dq = useDebounced(q, 350);
 
-  // نتائج/ترقيم
+  
+  // إخفاء أناشيد الأطفال (افتراضيًا مفعّل)
+  const [hideKids, setHideKids] = useState(true);
+
+  // استرجاع الحالة من التخزين المحلي
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem('nd_hide_kids');
+      if (raw === '0') setHideKids(false);
+    } catch {}
+  }, []);
+
+  // حفظ الحالة
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try { localStorage.setItem('nd_hide_kids', hideKids ? '1' : '0'); } catch {}
+  }, [hideKids]);
+// نتائج/ترقيم
   const [items, setItems] = useState<Track[]>([]);
   const [count, setCount] = useState<number>(0);
   const [offset, setOffset] = useState(0);
@@ -212,7 +230,7 @@ export default function Home() {
     setLoading(true);
     setErr('');
     try {
-      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${newOffset}`);
+      const r = await fetch(`/api/search?q=${encodeURIComponent(dq)}&limit=60&offset=${newOffset}&exclude_kids=\${hideKids?1:0}`);
       if (!r.ok) throw new Error(String(r.status));
       const j = await r.json();
       const page: Track[] = dedup(j.items || []);
@@ -239,7 +257,7 @@ export default function Home() {
       if (dq.trim() === '') {
         let initialRandomCount = 0;
         try {
-          const r = await fetch(`/api/random?limit=60`);
+          const r = await fetch(`/api/random?limit=60&exclude_kids=\${hideKids?1:0}`);
           const j = await r.json();
           const arr: Track[] = Array.isArray(j.items) ? j.items : [];
           initialRandomCount = arr.length;
@@ -252,7 +270,7 @@ export default function Home() {
           }
         }
         try {
-          const r2 = await fetch(`/api/search?q=&limit=1&offset=0`);
+          const r2 = await fetch(`/api/search?q=&limit=1&offset=0&exclude_kids=\${hideKids?1:0}`);
           const j2 = await r2.json();
           const total = j2?.count || 0;
           if (!cancelled) {
@@ -270,7 +288,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [dq]);
+  }, [dq, hideKids]);
 
   // تحضير توفر الكلمات
   useEffect(() => {
