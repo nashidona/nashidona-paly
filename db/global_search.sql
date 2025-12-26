@@ -22,7 +22,9 @@ with base as (
   from public.tracks t
   left join public.albums a on a.id = t.album_id
   where coalesce(t.title,'') not ilike '%تحميل%'
-    and coalesce(t.source_url,'') !~* '\.(zip|rar|7z|tar|gz|bz2)(\?.*)?$'
+  and coalesce(t.source_url,'') !~* '\.(zip|rar|7z|tar|gz|bz2)(\?.*)?$'
+  and coalesce(t.source_url,'') not ilike '%oazarab.com%'
+  and coalesce(t.go_url,'')     not ilike '%oazarab.com%'
 ), norm as (
   select id,
          lower(unaccent(title))   as ntitle,
@@ -53,8 +55,10 @@ with base as (
   select t.id, t.title, t.year, t.go_url, t.source_url, t.lyrics, a.title as album, a.info, a.cover_url
   from public.tracks t
   left join public.albums a on a.id = t.album_id
-  where coalesce(t.title,'') not ilike '%تحميل%'
-    and coalesce(t.source_url,'') !~* '\.(zip|rar|7z|tar|gz|bz2)(\?.*)?$'
+ where coalesce(t.title,'') not ilike '%تحميل%'
+  and coalesce(t.source_url,'') !~* '\.(zip|rar|7z|tar|gz|bz2)(\?.*)?$'
+  and coalesce(t.source_url,'') not ilike '%oazarab.com%'
+  and coalesce(t.go_url,'')     not ilike '%oazarab.com%'
 ), norm as (
   select id, title, year, go_url, source_url, lyrics, album, info, cover_url,
          lower(unaccent(title))   as ntitle,
