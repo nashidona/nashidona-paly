@@ -151,29 +151,52 @@ export default function BrowseClassPage() {
           </div>
         </div>
 
-        {/* Children */}
-        {children.length ? (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ marginBottom: 8, opacity: 0.8 }}>الأقسام الفرعية</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {children.map((ch) => (
-                <Link
-                  key={ch.id}
-                  href={`/browse/${ch.id}`}
-                  style={{
-                    padding: "8px 10px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    textDecoration: "none",
-                    fontSize: 14,
-                  }}
-                >
-                  {ch.name}
-                </Link>
-              ))}
-            </div>
+       {/* Children */}
+{children.length ? (
+  <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 8, opacity: 0.8 }}>الأقسام الفرعية</div>
+
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
+        gap: 12,
+      }}
+    >
+      {children.map((ch) => (
+        <Link
+          key={ch.id}
+          href={`/browse/${ch.id}`}
+          style={{
+            display: "block",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 14,
+            overflow: "hidden",
+            textDecoration: "none",
+          }}
+        >
+          <div style={{ aspectRatio: "16/9", background: "rgba(255,255,255,0.04)" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={ch.image_url || "/logo.png"}
+              alt={ch.name}
+              loading="lazy"
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = "/logo.png";
+              }}
+            />
           </div>
-        ) : null}
+
+          <div style={{ padding: 10 }}>
+            <div style={{ fontWeight: 800, fontSize: 14, lineHeight: 1.3 }}>{ch.name}</div>
+          </div>
+        </Link>
+      ))}
+    </div>
+  </div>
+) : null}
+
 
         {/* Albums */}
         <div style={{ marginBottom: 8, opacity: 0.8 }}>الألبومات</div>
