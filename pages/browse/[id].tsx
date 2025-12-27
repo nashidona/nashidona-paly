@@ -21,6 +21,15 @@ type AlbumItem = {
 
 const PAGE_SIZE = 36;
 
+function useDebounced<T>(value: T, delay = 300) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return v;
+}
+
 export default function BrowseClassPage() {
   const router = useRouter();
   const classId = useMemo(() => {
@@ -36,17 +45,17 @@ export default function BrowseClassPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [err, setErr] = useState<string>("");
 
-  // ✅ new: search inside children
-  const [childQuery, setChildQuery] = useState<string>("");
+  // ✅ بحث داخل القسم: أقسام + ألبومات
+  const [sectionQuery, setSectionQuery] = useState<string>("");
+  const dq = useDebounced(sectionQuery, 300);
 
   const hasMore = albums.length < count;
 
-  // ✅ new: filtered children list
   const filteredChildren = useMemo(() => {
-    const q = childQuery.trim().toLowerCase();
+    const q = dq.trim().toLowerCase();
     if (!q) return children;
     return children.filter((c) => (c.name || "").toLowerCase().includes(q));
-  }, [children, childQuery]);
+  }, [children, dq]);
 
   useEffect(() => {
     if (!classId) return;
@@ -56,25 +65,22 @@ export default function BrowseClassPage() {
     setChildren([]);
     setAlbums([]);
     setCount(0);
-    setChildQuery("");
+    setSectionQuery("");
 
     (async () => {
       try {
-        // load class itself (using ids=)
         const r1 = await fetch(`/api/classes?ids=${classId}`);
         const j1 = await r1.json();
         if (j1.error) throw new Error(j1.error);
-        const c = (j1.items || [])[0] || null;
-        setCls(c);
+        setCls((j1.items || [])[0] || null);
 
-        // children
         const r2 = await fetch(`/api/classes?parent_id=${classId}`);
         const j2 = await r2.json();
         if (j2.error) throw new Error(j2.error);
         setChildren(j2.items || []);
 
-        // first page albums
-        await loadMore(classId, 0, true);
+        // أول صفحة ألبومات بدون فلتر
+        await loadMore(classId, 0, "", true);
       } catch (e: any) {
         setErr(e?.message || String(e));
       }
@@ -82,12 +88,24 @@ export default function BrowseClassPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId]);
 
-  async function loadMore(id: number, offset: number, replace = false) {
+  // ✅ عند تغيير البحث: أعد تحميل الألبومات من البداية مع q
+  useEffect(() => {
+    if (!classId) return;
+    (async () => {
+      setAlbums([]);
+      setCount(0);
+      await loadMore(classId, 0, dq.trim(), true);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dq, classId]);
+
+  async function loadMore(id: number, offset: number, q: string, replace = false) {
     if (loading) return;
     setLoading(true);
+    setErr("");
     try {
       const r = await fetch(
-        `/api/albums-by-class?class_id=${id}&limit=${PAGE_SIZE}&offset=${offset}`
+        `/api/albums-by-class?class_id=${id}&limit=${PAGE_SIZE}&offset=${offset}&q=${encodeURIComponent(q || "")}`
       );
       const j = await r.json();
       if (j.error) throw new Error(j.error);
@@ -104,7 +122,7 @@ export default function BrowseClassPage() {
 
   const onLoadMore = () => {
     if (!classId) return;
-    loadMore(classId, albums.length, false);
+    loadMore(classId, albums.length, dq.trim(), false);
   };
 
   return (
@@ -161,26 +179,26 @@ export default function BrowseClassPage() {
           </div>
         </div>
 
+        {/* ✅ Section Search */}
+        <input
+          value={sectionQuery}
+          onChange={(e) => setSectionQuery(e.target.value)}
+          placeholder="ابحث داخل هذا القسم (أقسام فرعية + ألبومات)..."
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.14)",
+            background: "transparent",
+            marginBottom: 14,
+            outline: "none",
+          }}
+        />
+
         {/* Children */}
         {children.length ? (
           <div style={{ marginBottom: 16 }}>
             <div style={{ marginBottom: 8, opacity: 0.8 }}>الأقسام الفرعية</div>
-
-            {/* ✅ new: search input for children */}
-            <input
-              value={childQuery}
-              onChange={(e) => setChildQuery(e.target.value)}
-              placeholder="ابحث داخل الأقسام الفرعية..."
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "transparent",
-                marginBottom: 10,
-                outline: "none",
-              }}
-            />
 
             <div
               style={{
@@ -189,7 +207,6 @@ export default function BrowseClassPage() {
                 gap: 12,
               }}
             >
-              {/* ✅ use filteredChildren */}
               {filteredChildren.map((ch) => (
                 <Link
                   key={ch.id}
@@ -208,12 +225,7 @@ export default function BrowseClassPage() {
                       src={ch.image_url || "/logo.png"}
                       alt={ch.name}
                       loading="lazy"
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        display: "block",
-                      }}
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).src = "/logo.png";
                       }}
@@ -228,7 +240,7 @@ export default function BrowseClassPage() {
             </div>
 
             {children.length > 0 && filteredChildren.length === 0 ? (
-              <div style={{ marginTop: 10, opacity: 0.7 }}>لا يوجد نتائج مطابقة.</div>
+              <div style={{ marginTop: 10, opacity: 0.7 }}>لا يوجد أقسام فرعية مطابقة.</div>
             ) : null}
           </div>
         ) : null}
@@ -246,7 +258,8 @@ export default function BrowseClassPage() {
           {albums.map((a) => (
             <Link
               key={a.id}
-              href={`/album/${a.id}`}
+              // ✅ بدل /album/ID (غير موجود) → نبحث باسم الألبوم في الصفحة الرئيسية
+              href={`/?q=${encodeURIComponent(a.title)}`}
               style={{
                 display: "block",
                 textDecoration: "none",
@@ -261,12 +274,7 @@ export default function BrowseClassPage() {
                   src={a.cover_url || "/logo.png"}
                   alt={a.title}
                   loading="lazy"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: "block",
-                  }}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                   onError={(e) => {
                     (e.currentTarget as HTMLImageElement).src = "/logo.png";
                   }}
@@ -274,9 +282,7 @@ export default function BrowseClassPage() {
               </div>
               <div style={{ padding: 10 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.3 }}>{a.title}</div>
-                {a.year ? (
-                  <div style={{ opacity: 0.7, fontSize: 12, marginTop: 4 }}>{a.year}</div>
-                ) : null}
+                {a.year ? <div style={{ opacity: 0.7, fontSize: 12, marginTop: 4 }}>{a.year}</div> : null}
               </div>
             </Link>
           ))}
