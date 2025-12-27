@@ -36,7 +36,17 @@ export default function BrowseClassPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [err, setErr] = useState<string>("");
 
+  // ✅ new: search inside children
+  const [childQuery, setChildQuery] = useState<string>("");
+
   const hasMore = albums.length < count;
+
+  // ✅ new: filtered children list
+  const filteredChildren = useMemo(() => {
+    const q = childQuery.trim().toLowerCase();
+    if (!q) return children;
+    return children.filter((c) => (c.name || "").toLowerCase().includes(q));
+  }, [children, childQuery]);
 
   useEffect(() => {
     if (!classId) return;
@@ -46,6 +56,7 @@ export default function BrowseClassPage() {
     setChildren([]);
     setAlbums([]);
     setCount(0);
+    setChildQuery("");
 
     (async () => {
       try {
@@ -75,7 +86,9 @@ export default function BrowseClassPage() {
     if (loading) return;
     setLoading(true);
     try {
-      const r = await fetch(`/api/albums-by-class?class_id=${id}&limit=${PAGE_SIZE}&offset=${offset}`);
+      const r = await fetch(
+        `/api/albums-by-class?class_id=${id}&limit=${PAGE_SIZE}&offset=${offset}`
+      );
       const j = await r.json();
       if (j.error) throw new Error(j.error);
 
@@ -89,7 +102,6 @@ export default function BrowseClassPage() {
     }
   }
 
-  // simple "Load more" button (reliable), we can convert to infinite scroll later if you want
   const onLoadMore = () => {
     if (!classId) return;
     loadMore(classId, albums.length, false);
@@ -145,58 +157,81 @@ export default function BrowseClassPage() {
           />
           <div>
             <div style={{ fontSize: 20, fontWeight: 800 }}>{cls?.name || "..."}</div>
-            <div style={{ opacity: 0.7, marginTop: 2 }}>
-              {count ? `${count} ألبوم` : ""}
-            </div>
+            <div style={{ opacity: 0.7, marginTop: 2 }}>{count ? `${count} ألبوم` : ""}</div>
           </div>
         </div>
 
-       {/* Children */}
-{children.length ? (
-  <div style={{ marginBottom: 16 }}>
-    <div style={{ marginBottom: 8, opacity: 0.8 }}>الأقسام الفرعية</div>
+        {/* Children */}
+        {children.length ? (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 8, opacity: 0.8 }}>الأقسام الفرعية</div>
 
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
-        gap: 12,
-      }}
-    >
-      {children.map((ch) => (
-        <Link
-          key={ch.id}
-          href={`/browse/${ch.id}`}
-          style={{
-            display: "block",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: 14,
-            overflow: "hidden",
-            textDecoration: "none",
-          }}
-        >
-          <div style={{ aspectRatio: "16/9", background: "rgba(255,255,255,0.04)" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={ch.image_url || "/logo.png"}
-              alt={ch.name}
-              loading="lazy"
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = "/logo.png";
+            {/* ✅ new: search input for children */}
+            <input
+              value={childQuery}
+              onChange={(e) => setChildQuery(e.target.value)}
+              placeholder="ابحث داخل الأقسام الفرعية..."
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "transparent",
+                marginBottom: 10,
+                outline: "none",
               }}
             />
-          </div>
 
-          <div style={{ padding: 10 }}>
-            <div style={{ fontWeight: 800, fontSize: 14, lineHeight: 1.3 }}>{ch.name}</div>
-          </div>
-        </Link>
-      ))}
-    </div>
-  </div>
-) : null}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
+                gap: 12,
+              }}
+            >
+              {/* ✅ use filteredChildren */}
+              {filteredChildren.map((ch) => (
+                <Link
+                  key={ch.id}
+                  href={`/browse/${ch.id}`}
+                  style={{
+                    display: "block",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 14,
+                    overflow: "hidden",
+                    textDecoration: "none",
+                  }}
+                >
+                  <div style={{ aspectRatio: "16/9", background: "rgba(255,255,255,0.04)" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={ch.image_url || "/logo.png"}
+                      alt={ch.name}
+                      loading="lazy"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                      }}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = "/logo.png";
+                      }}
+                    />
+                  </div>
 
+                  <div style={{ padding: 10 }}>
+                    <div style={{ fontWeight: 800, fontSize: 14, lineHeight: 1.3 }}>{ch.name}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {children.length > 0 && filteredChildren.length === 0 ? (
+              <div style={{ marginTop: 10, opacity: 0.7 }}>لا يوجد نتائج مطابقة.</div>
+            ) : null}
+          </div>
+        ) : null}
 
         {/* Albums */}
         <div style={{ marginBottom: 8, opacity: 0.8 }}>الألبومات</div>
@@ -226,7 +261,12 @@ export default function BrowseClassPage() {
                   src={a.cover_url || "/logo.png"}
                   alt={a.title}
                   loading="lazy"
-                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    display: "block",
+                  }}
                   onError={(e) => {
                     (e.currentTarget as HTMLImageElement).src = "/logo.png";
                   }}
