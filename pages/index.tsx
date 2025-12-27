@@ -790,6 +790,16 @@ export default function Home() {
       setFbBusy(false);
     }
   }
+// ✅ تحميل قيمة q من الرابط (لاستخدام browse → album click)
+useEffect(() => {
+  if (typeof window === "undefined") return;
+  try {
+    const u = new URL(window.location.href);
+    const q0 = u.searchParams.get("q");
+    if (q0 && q.trim() === "") setQ(q0);
+  } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
   // تشغيل فوري عند فتح رابط المشاركة /?play=ID
   useEffect(() => {
