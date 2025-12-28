@@ -1,0 +1,570 @@
+{
+  "1": {
+    "name": "البومات",
+    "parent": null
+  },
+  "2": {
+    "name": "منشدين",
+    "parent": null
+  },
+  "3": {
+    "name": "موسى مصطفى",
+    "parent": null
+  },
+  "4": {
+    "name": "أحمد بو خاطر",
+    "parent": null
+  },
+  "5": {
+    "name": "عماد رامي",
+    "parent": null
+  },
+  "6": {
+    "name": "محمد ابو راتب",
+    "parent": null
+  },
+  "7": {
+    "name": "فائز الحلو",
+    "parent": null
+  },
+  "8": {
+    "name": "مشاري العفاسي",
+    "parent": null
+  },
+  "34": {
+    "name": "أحمد الهاجري",
+    "parent": null
+  },
+  "10": {
+    "name": "سامي يوسف",
+    "parent": null
+  },
+  "12": {
+    "name": "حسن حفار",
+    "parent": null
+  },
+  "21": {
+    "name": "عدنان الحلاق",
+    "parent": null
+  },
+  "22": {
+    "name": "سامر الدرة",
+    "parent": null
+  },
+  "23": {
+    "name": "منذر سرميني",
+    "parent": null
+  },
+  "24": {
+    "name": "غسان ابو خضرة",
+    "parent": null
+  },
+  "26": {
+    "name": "معصتم بالله العسلي",
+    "parent": null
+  },
+  "28": {
+    "name": "مصطفى هلال",
+    "parent": null
+  },
+  "29": {
+    "name": "أسامة الصافي",
+    "parent": null
+  },
+  "30": {
+    "name": "Zain Bhikha",
+    "parent": null
+  },
+  "31": {
+    "name": "Hamza Robertson",
+    "parent": null
+  },
+  "32": {
+    "name": "محمد العزاوي",
+    "parent": null
+  },
+  "35": {
+    "name": "إبراهيم السعيد",
+    "parent": null
+  },
+  "36": {
+    "name": "فهد الكبيسي",
+    "parent": null
+  },
+  "37": {
+    "name": "محمود السيد ",
+    "parent": null
+  },
+  "38": {
+    "name": "أبو عبد الملك",
+    "parent": null
+  },
+  "39": {
+    "name": "بلال الكبيسي",
+    "parent": null
+  },
+  "40": {
+    "name": "محمد الحسيان",
+    "parent": null
+  },
+  "41": {
+    "name": "عادل الكندري",
+    "parent": null
+  },
+  "42": {
+    "name": "أحمد أبو خرس",
+    "parent": null
+  },
+  "43": {
+    "name": "يحيى حوى",
+    "parent": null
+  },
+  "44": {
+    "name": "حسن عثمان",
+    "parent": null
+  },
+  "45": {
+    "name": "حمود الخضر",
+    "parent": null
+  },
+  "46": {
+    "name": "خالد زاهر",
+    "parent": null
+  },
+  "47": {
+    "name": "خالد الضبيبي",
+    "parent": null
+  },
+  "58": {
+    "name": "فريق الوعد للفن الإسلامي",
+    "parent": null
+  },
+  "48": {
+    "name": "طارق جابر ( أبو زياد ) ",
+    "parent": null
+  },
+  "49": {
+    "name": "عبد القادر قوزع",
+    "parent": null
+  },
+  "50": {
+    "name": "عبد الفتاح عوينات ",
+    "parent": null
+  },
+  "51": {
+    "name": "مصطفى العزاوي",
+    "parent": null
+  },
+  "52": {
+    "name": "أبو محمود الترمذي",
+    "parent": null
+  },
+  "53": {
+    "name": "ناصر المغني",
+    "parent": null
+  },
+  "54": {
+    "name": "نور الدين خورشيد",
+    "parent": null
+  },
+  "55": {
+    "name": "عمر الضحيان",
+    "parent": null
+  },
+  "56": {
+    "name": "نزار أبو الفدا",
+    "parent": null
+  },
+  "57": {
+    "name": "Yusuf Islam",
+    "parent": null
+  },
+  "59": {
+    "name": "ظافر عز الدين",
+    "parent": null
+  },
+  "60": {
+    "name": "عبد العزيز عبد الغني",
+    "parent": null
+  },
+  "61": {
+    "name": "عمر الصعيدي",
+    "parent": null
+  },
+  "62": {
+    "name": "أشرف يوسف",
+    "parent": null
+  },
+  "63": {
+    "name": "منصور زعيتر",
+    "parent": null
+  },
+  "64": {
+    "name": "الأخوة أبو شعر",
+    "parent": null
+  },
+  "65": {
+    "name": "أحمد عادل",
+    "parent": null
+  },
+  "66": {
+    "name": "فرق إنشادية",
+    "parent": null
+  },
+  "67": {
+    "name": "فرقة اليرموك",
+    "parent": null
+  },
+  "68": {
+    "name": "أحمد خالد",
+    "parent": null
+  },
+  "84": {
+    "name": "مشاري العرادة",
+    "parent": null
+  },
+  "70": {
+    "name": "مؤيد العزاوي",
+    "parent": null
+  },
+  "71": {
+    "name": "صباح هاشم الجنابي",
+    "parent": null
+  },
+  "72": {
+    "name": "إبراهيم الجبرين",
+    "parent": null
+  },
+  "73": {
+    "name": "إلهام أحمد :: سنا :: ",
+    "parent": null
+  },
+  "74": {
+    "name": "سامر نشار",
+    "parent": null
+  },
+  "75": {
+    "name": "مازن السعدي",
+    "parent": null
+  },
+  "76": {
+    "name": "قناة الصوفية",
+    "parent": null
+  },
+  "77": {
+    "name": "مسعود كرتس",
+    "parent": null
+  },
+  "78": {
+    "name": "منير عقلة",
+    "parent": null
+  },
+  "79": {
+    "name": "أناشيد أطفال",
+    "parent": null
+  },
+  "80": {
+    "name": "هالة صباغ",
+    "parent": null
+  },
+  "81": {
+    "name": "محمود فارس",
+    "parent": null
+  },
+  "82": {
+    "name": "الشيخ محمد محمود الطبلاوي",
+    "parent": null
+  },
+  "83": {
+    "name": "الشيخ محمود خليل الحصري",
+    "parent": null
+  },
+  "85": {
+    "name": "محمد مطري",
+    "parent": null
+  },
+  "86": {
+    "name": "خيري حاتم",
+    "parent": null
+  },
+  "87": {
+    "name": "فهد مطر",
+    "parent": null
+  },
+  "88": {
+    "name": "سمير البشيري",
+    "parent": null
+  },
+  "98": {
+    "name": "أحمد شكري",
+    "parent": null
+  },
+  "89": {
+    "name": "فرقة الاقصى الجزائرية",
+    "parent": null
+  },
+  "90": {
+    "name": "مصطفى الجعفري",
+    "parent": null
+  },
+  "91": {
+    "name": "رضوان درويش",
+    "parent": null
+  },
+  "92": {
+    "name": "أسامة حسن",
+    "parent": null
+  },
+  "93": {
+    "name": "صلاح الكردي",
+    "parent": null
+  },
+  "94": {
+    "name": "Native Deen",
+    "parent": null
+  },
+  "95": {
+    "name": "ماهر زين  maher zain",
+    "parent": null
+  },
+  "97": {
+    "name": "أحمد بو شهاب",
+    "parent": null
+  },
+  "99": {
+    "name": "فرقة عاشق الرسول",
+    "parent": null
+  },
+  "100": {
+    "name": "مصعب المقرن",
+    "parent": null
+  },
+  "101": {
+    "name": "بلال حموي",
+    "parent": null
+  },
+  "102": {
+    "name": "قناة طيور الجنة",
+    "parent": null
+  },
+  "103": {
+    "name": "قناة كراميش",
+    "parent": null
+  },
+  "104": {
+    "name": "فرقة صبا الفنية",
+    "parent": null
+  },
+  "105": {
+    "name": "إصدارات 2003 - 2004",
+    "parent": null
+  },
+  "106": {
+    "name": "إصدارات 2005 - 2006",
+    "parent": null
+  },
+  "107": {
+    "name": "إصدارات 2007 - 2008",
+    "parent": null
+  },
+  "108": {
+    "name": "إصدارات 2009 - 2010",
+    "parent": null
+  },
+  "109": {
+    "name": "إصدارات 2011 - 2012",
+    "parent": null
+  },
+  "110": {
+    "name": "عبد الناصر حلاق",
+    "parent": null
+  },
+  "111": {
+    "name": "أحمد عبد الستار",
+    "parent": null
+  },
+  "112": {
+    "name": "أغاني الثورة السورية",
+    "parent": null
+  },
+  "113": {
+    "name": "فرقة أحرار الشام",
+    "parent": null
+  },
+  "118": {
+    "name": "كناري",
+    "parent": null
+  },
+  "115": {
+    "name": "وصفي المعصراني",
+    "parent": null
+  },
+  "116": {
+    "name": "منشدي الثورة السورية",
+    "parent": null
+  },
+  "117": {
+    "name": "فرق إنشادية :: الثورة السورية :: ",
+    "parent": null
+  },
+  "119": {
+    "name": "أمين حاميم",
+    "parent": null
+  },
+  "120": {
+    "name": "الوسمي",
+    "parent": null
+  },
+  "121": {
+    "name": "فرقة حراء ",
+    "parent": null
+  },
+  "122": {
+    "name": "قناة محبوبة",
+    "parent": null
+  },
+  "123": {
+    "name": "تغطيات نشيدنا",
+    "parent": null
+  },
+  "124": {
+    "name": "اناشيد فنان في صفحة واحدة",
+    "parent": null
+  },
+  "125": {
+    "name": "جديد الالبومات",
+    "parent": null
+  },
+  "126": {
+    "name": "قناة بيبي الفضائية",
+    "parent": null
+  },
+  "127": {
+    "name": "قناة نون الفضائية",
+    "parent": null
+  },
+  "128": {
+    "name": "ابراهيم الدردساوي",
+    "parent": null
+  },
+  "129": {
+    "name": "اناشيد ",
+    "parent": null
+  },
+  "130": {
+    "name": "لقاءات",
+    "parent": null
+  },
+  "131": {
+    "name": "مهرجانات",
+    "parent": null
+  },
+  "132": {
+    "name": "مختارات",
+    "parent": null
+  },
+  "133": {
+    "name": "مصطفى العزاوي - لقاء برنامج نشيد شو ",
+    "parent": null
+  },
+  "134": {
+    "name": "الوسمي - ملتقى زايد العائلي ",
+    "parent": null
+  },
+  "135": {
+    "name": "لقاء \"ليالي شباب\" مع نجوم كناري ",
+    "parent": null
+  },
+  "136": {
+    "name": "إعلانات",
+    "parent": null
+  },
+  "137": {
+    "name": "محمد العزاوي - لقاء برنامج نشيد شو ",
+    "parent": null
+  },
+  "138": {
+    "name": "إصدارات 2013 - 2014",
+    "parent": null
+  },
+  "139": {
+    "name": "أناشيد الحج",
+    "parent": null
+  },
+  "141": {
+    "name": "مسابقة غرد بصوتك",
+    "parent": null
+  },
+  "142": {
+    "name": "مهرجان ربيع ينبع 1435هـ",
+    "parent": null
+  },
+  "143": {
+    "name": "مهرجان قُلها أُحبك",
+    "parent": null
+  },
+  "144": {
+    "name": "أيمن رمضان",
+    "parent": null
+  },
+  "145": {
+    "name": "أناشيد البرامج",
+    "parent": null
+  },
+  "147": {
+    "name": "حصريات نشيدنا",
+    "parent": null
+  },
+  "148": {
+    "name": "كليبات",
+    "parent": null
+  },
+  "149": {
+    "name": "صدى الإنشاد",
+    "parent": null
+  },
+  "150": {
+    "name": "نشيد شو",
+    "parent": null
+  },
+  "151": {
+    "name": "فن بجد",
+    "parent": null
+  },
+  "152": {
+    "name": "أنغام",
+    "parent": null
+  },
+  "153": {
+    "name": "ليلة سمر",
+    "parent": null
+  },
+  "154": {
+    "name": "شواطئ الإبداع",
+    "parent": null
+  },
+  "155": {
+    "name": "هدا البلبل",
+    "parent": null
+  },
+  "156": {
+    "name": "حصريات نشيدنا",
+    "parent": null
+  },
+  "157": {
+    "name": "على هواك",
+    "parent": null
+  },
+  "158": {
+    "name": "مهرجان حسانا فله",
+    "parent": null
+  },
+  "159": {
+    "name": "مهرجان حوارنا فن ",
+    "parent": null
+  },
+  "160": {
+    "name": "هاشم باروم",
+    "parent": null
+  }
+}
