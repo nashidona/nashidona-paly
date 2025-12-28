@@ -40,9 +40,21 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     const isBot = /(bot|facebookexternalhit|twitterbot|whatsapp|telegram|google|bing|slurp|duckduck|duckduckgo|linkedinbot|embed|preview|vkshare)/i.test(ua)
     const noRedir = 'noredir' in (ctx.query || {})
 
-    if (!isBot && !noRedir) {
-      return { redirect: { destination: `/?play=${id}`, permanent: false } }
-    }
+   if (!isBot && !noRedir) {
+  const q =
+    (tr.album && tr.album.trim()) ||
+    (tr.artist && tr.artist.trim()) ||
+    (tr.artist_text && tr.artist_text.trim()) ||
+    tr.title;
+
+  return {
+    redirect: {
+      destination: `/?play=${id}&q=${encodeURIComponent(q)}`,
+      permanent: false,
+    },
+  };
+}
+
 
     // 3) في حالة البوت أو ?noredir=1 نعرض صفحة OG
     return { props: { tr, site } }
