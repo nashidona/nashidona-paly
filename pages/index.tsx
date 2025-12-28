@@ -109,6 +109,32 @@ export default function Home() {
 
   // ——— إظهار/إخفاء أناشيد الأطفال (افتراضيًا: مخفية) ———
   const [showKids, setShowKids] = useState(false);
+  
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  try {
+    const u = new URL(window.location.href);
+
+    // 1) أهم حالة: play=TRACK_ID  → /t/TRACK_ID
+    const play = u.searchParams.get("play");
+    if (play && /^\d+$/.test(play)) {
+      window.location.replace(`/t/${play}`);
+      return;
+    }
+
+    // 2) روابط قديمة من نوع songs=art&art=ID → اعتبرها صفحة منشد/قسم
+    const songs = u.searchParams.get("songs");
+    const art = u.searchParams.get("art");
+    if (songs === "art" && art && /^\d+$/.test(art)) {
+      window.location.replace(`/browse/${art}`);
+      return;
+    }
+
+    // (اختياري) إذا في نمط ثاني مستقبلاً: خليه يضل على الصفحة الرئيسية
+    // وتقدر تضيف هنا mapping جديد حسب الروابط اللي بتشوفها من Google.
+  } catch {}
+}, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
