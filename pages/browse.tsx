@@ -84,22 +84,6 @@ export default function BrowsePage() {
           ))}
         </div>
 
-        {/* ✅ بحث داخل الأقسام الرئيسية */}
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="ابحث داخل الأقسام الرئيسية..."
-          style={{
-            width: "100%",
-            maxWidth: 520,
-            padding: "10px 12px",
-            borderRadius: 12,
-            border: "1px solid #e5e7eb",
-            background: "#fff",
-            outline: "none",
-          }}
-        />
-
         {err ? (
           <div style={{ padding: 12, border: "1px solid #f3c", borderRadius: 8, marginTop: 12 }}>
             خطأ: {err}
