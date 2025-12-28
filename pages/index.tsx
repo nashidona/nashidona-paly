@@ -924,7 +924,6 @@ useEffect(() => {
     style={{
       padding: "10px 14px",
       borderRadius: 12,
-      border: "1px solid #e5e7eb",
       textDecoration: "none",
       display: "inline-flex",
       alignItems: "center",
