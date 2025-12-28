@@ -1,6 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 /* eslint-disable @next/next/no-img-element */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 
 // ===== Types =====
 export type Track = {
@@ -923,7 +924,7 @@ useEffect(() => {
     style={{
       padding: "10px 14px",
       borderRadius: 12,
-      border: "1px solid rgba(255,255,255,0.18)",
+      border: "1px solid #e5e7eb",
       textDecoration: "none",
       display: "inline-flex",
       alignItems: "center",
