@@ -917,6 +917,27 @@ useEffect(() => {
 
       {/* Search + album banner */}
       <section style={{ maxWidth: 960, margin: '20px auto 12px auto', padding: '12px 16px' }}>
+       <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+  <Link
+    href="/browse"
+    style={{
+      padding: "10px 14px",
+      borderRadius: 12,
+      border: "1px solid rgba(255,255,255,0.18)",
+      textDecoration: "none",
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8,
+    }}
+  >
+    اكتب ماتحب ان تسمع في مربع البحث او انقر هنا لتصفّح الأقسام
+  </Link>
+
+  {/* (اختياري) زر عشوائي */}
+  {/* <Link href="/?random=1" ...>عشوائي</Link> */}
+</div>
+
+        
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
           <input
             value={q}
