@@ -6,17 +6,27 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
 const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
 const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
+function parseBool(v: unknown, fallback: boolean) {
+  const s = String(v ?? '').toLowerCase();
+  if (['1', 'true', 'yes', 'y'].includes(s)) return true;
+  if (['0', 'false', 'no', 'n'].includes(s)) return false;
+  return fallback;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const limit = Math.min(parseInt(String(req.query.limit ?? '60')) || 60, 120);
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.setHeader('Allow', 'GET, HEAD');
+      return res.status(405).json({ items: [], error: 'method_not_allowed' });
+    }
 
-    // NEW: kids filter (default ON)
-    const exParam = String(req.query.exclude_kids ?? '1').toLowerCase();
-    const exclude_kids = exParam === '1' || exParam === 'true' || exParam === 'yes';
+    const rawLimit = parseInt(String(req.query.limit ?? '60'), 10) || 60;
+    const limit = Math.min(Math.max(rawLimit, 1), 60);
+    const exclude_kids = parseBool(req.query.exclude_kids, true);
 
-    // How many rows total?
     const { data: totalArr, error: cErr } = await supabase.rpc('global_search_count', { q: '', exclude_kids });
     if (cErr) throw cErr;
+
     const total =
       Array.isArray(totalArr)
         ? (totalArr[0]?.count ?? totalArr[0]?.total ?? 0)
@@ -29,7 +39,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       q: '',
       limit_n: limit,
       offset_n: offset,
-      exclude_kids, // NEW
+      exclude_kids,
     });
     if (error) throw error;
 
@@ -46,8 +56,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       has_lyrics: !!(r.lyrics && String(r.lyrics).trim()),
     }));
 
+    // عشوائي لكن قابل للكاش مؤقتاً لحماية الخطة المجانية.
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=600, stale-while-revalidate=1800');
     res.status(200).json({ items });
   } catch (err: any) {
+    res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({ items: [], error: err?.message || String(err) });
   }
 }
