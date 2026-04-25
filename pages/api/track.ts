@@ -2,7 +2,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
-// يكوّن العميل بأمان: Service Role إن وُجد وإلا Anon
 function getSupabase() {
   const url =
     (process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined) ||
@@ -22,16 +21,20 @@ function getSupabase() {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.setHeader('Allow', 'GET, HEAD');
+      return res.status(405).json({ error: 'method_not_allowed' });
+    }
+
     const idRaw = req.query.id;
     const id = Array.isArray(idRaw) ? idRaw[0] : idRaw;
     const idNum = Number(id);
-    if (!id || Number.isNaN(idNum)) {
+    if (!id || Number.isNaN(idNum) || idNum <= 0) {
       return res.status(400).json({ error: 'missing id' });
     }
 
     const supabase = getSupabase();
 
-    // ⚠️ لا نطلب cover_url من tracks لأنه غير موجود
     const { data: tr, error } = await supabase
       .from('tracks')
       .select('id,title,year,lyrics,album_id,artist_id')
@@ -41,19 +44,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (error) return res.status(500).json({ error: error.message });
     if (!tr) return res.status(404).json({ error: 'not found' });
 
-    // السلوك القديم (لوحة الكلمات): نعيد فقط lyrics
     const basic = { lyrics: (tr.lyrics ?? '') as string };
 
-    // وضع موسّع عند طلب full=1 (لصفحة المشاركة /t/[id])
     const wantFull =
       String(req.query.full || '').toLowerCase() === '1' ||
       String(req.query.full || '').toLowerCase() === 'true';
 
     if (!wantFull) {
+      res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=86400, stale-while-revalidate=86400');
       return res.status(200).json(basic);
     }
 
-    // نجلب بيانات الألبوم (الغلاف/العنوان/السنة) إن وُجد
     let albumTitle: string | null = null;
     let albumYear: string | null = tr.year ?? null;
     let albumCover: string | null = null;
@@ -69,7 +70,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       albumCover = alb?.cover_url ?? null;
     }
 
-    // نجلب اسم المنشد إن وُجد ارتباط
     let artistName: string | null = null;
     if (tr.artist_id) {
       const { data: ar } = await supabase
@@ -84,14 +84,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       id: tr.id,
       title: tr.title || `نشيد رقم ${idNum}`,
       year: albumYear,
-      cover_url: albumCover, // قد تكون null — العميل يتعامل معها
+      cover_url: albumCover,
       album: albumTitle,
       artist: artistName,
       lyrics: (tr.lyrics ?? '') as string,
     };
 
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=86400, stale-while-revalidate=86400');
     return res.status(200).json({ ...basic, item, ok: true });
   } catch (e: any) {
+    res.setHeader('Cache-Control', 'no-store');
     return res.status(500).json({ error: e?.message || 'server error' });
   }
 }
