@@ -364,21 +364,22 @@ export default function Home() {
     };
   }, [dq, showKids]);
 
-  // تحضير توفر الكلمات
+  // تحضير توفر الكلمات بدون طلب 36 API/Supabase عند كل تحميل صفحة.
+  // نعتمد على has_lyrics القادم من /api/search و/api/random، ونجلب الكلمات فقط عند ضغط المستخدم على الأيقونة.
   useEffect(() => {
     if (!items.length) return;
-    const sample = items.slice(0, 36).filter((it) => lyricsMap[String(it.id)] === undefined);
-    if (!sample.length) return;
-    (async () => {
-      for (const it of sample) {
-        try {
-          const r = await fetch(`/api/track?id=${it.id}`);
-          const j = await r.json();
-          const has = !!(j?.lyrics && String(j.lyrics).trim());
-          if (has) setLyricsMap((m) => ({ ...m, [String(it.id)]: true }));
-        } catch {}
+    setLyricsMap((m) => {
+      let changed = false;
+      const next = { ...m };
+      for (const it of items) {
+        const k = String(it.id);
+        if (it.has_lyrics && next[k] !== true) {
+          next[k] = true;
+          changed = true;
+        }
       }
-    })();
+      return changed ? next : m;
+    });
   }, [items]);
 
   // تمرير لا نهائي
@@ -717,7 +718,7 @@ export default function Home() {
     }
 
     const total = count && count > 0 ? count : items.length;
-    const cap = Math.min(total, 200);
+    const cap = Math.min(total, 100);
     if (cap <= 0) return;
 
     if (cap > items.length && cap > 120) {
@@ -726,7 +727,7 @@ export default function Home() {
 
     let all = [...items];
     let nextOffset = items.length;
-    const PAGE = 60;
+    const PAGE = 50;
     const maxLoops = 50;
 
     for (let loop = 0; all.length < cap && loop < maxLoops; loop++) {
