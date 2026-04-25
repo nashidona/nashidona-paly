@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /api/
+Disallow: /api/search
+Disallow: /api/random
+Disallow: /api/track
+Disallow: /api/stream
+Disallow: /api/d/
+Disallow: /api/download/
+Allow: /
